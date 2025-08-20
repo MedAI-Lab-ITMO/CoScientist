@@ -72,7 +72,6 @@ def simple_query_llm(model_url: str, question: str, pdfs: list,) -> dict:
 
     if pdfs:
         update_activity(os.path.dirname(pdfs[0]))
-    model_url = 'https://openrouter.ai/api/v1;openai/gpt-4o'
     llm = create_llm_connector(model_url)
 
     content = []
