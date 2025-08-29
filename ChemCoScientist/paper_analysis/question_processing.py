@@ -2,11 +2,12 @@ import base64
 import os
 
 from dotenv import load_dotenv
-from langchain_core.messages import SystemMessage
+from langchain_core.messages import SystemMessage, HumanMessage
 from protollm.connectors import create_llm_connector
 
 from ChemCoScientist.paper_analysis.chroma_db_operations import ChromaDBPaperStore
-from ChemCoScientist.paper_analysis.prompts import sys_prompt, explore_my_papers_prompt
+from ChemCoScientist.paper_analysis.prompts import sys_prompt, explore_my_papers_prompt, sys_prompt_LLM
+from ChemCoScientist.paper_analysis.settings import allowed_providers
 from CoScientist.paper_parser.utils import convert_to_base64, prompt_func
 from definitions import CONFIG_PATH
 from ChemCoScientist.frontend.utils import update_activity
@@ -37,7 +38,7 @@ def query_llm(
     Returns:
         tuple: A tuple containing the LLM's response content (str) and a dictionary of response metadata (dict).
     """
-    llm = create_llm_connector(model_url)
+    llm = create_llm_connector(model_url, extra_body={"provider": {"only": allowed_providers}})
 
     img_context = list(map(convert_to_base64, img_paths))
 
@@ -49,6 +50,8 @@ def query_llm(
                 "image": img_context,
             }
         ),
+        # SystemMessage(content=sys_prompt_LLM),
+        # HumanMessage(content=f"USER QUESTION: {question}")
     ]
 
     res = llm.invoke(messages)
