@@ -17,10 +17,6 @@ RUN pip install poetry && \
 COPY pyproject.toml .
 RUN poetry --no-interaction --no-ansi --no-root install
 
-RUN touch test.pdf && \
-    marker_single test.pdf || true && \
-    rm test.pdf
-
 # Install ProtoLLM in a separate call so updating the repo will not require full dependency reinstall
 RUN poetry run pip install --no-cache --no-deps git+https://github.com/aimclub/ProtoLLM.git@main
 
