@@ -38,19 +38,21 @@ The project leverages a multi-agent system, combining Large Language Models (LLM
 poetry install
 poetry run pip install --no-deps git+https://github.com/aimclub/ProtoLLM.git@main
 ```
-2. Create a `config.env` file in the root of the project based on (example_config.env)[example_config.env]
-3. Add a new query in (main_cli.py)[ChemCoScientist/main_cli.py], e.g.:
-```inputs = {"input": "Generate an image of spherical nanoparticles."}```
-4. Run (main_cli.py)[ChemCoScientist/main_cli.py]
+2. Create a `config.env` file in the root of the project based on [example_config.env](example_config.env)
+3. Add a new query in [main_cli.py](ChemCoScientist/main_cli.py), e.g.:
+```
+inputs = {"input": "Generate an image of spherical nanoparticles."}
+```
+4. Run [main_cli.py](ChemCoScientist/main_cli.py)
 
 ### Run ChemCoScientist in Docker:
 
-1. Create a `config.env` file in the root of the project based on (example_config.env)[example_config.env]
+1. Create a `config.env` file in the root of the project based on [example_config.env](example_config.env)
 2. Adjust the path to the volume if necessary in docker-compose.yml
 3. Run `cd docker`
 4. Run `docker compose up`
 
-## Getting Started with ChemCoScientist
+## Getting Started
 
 To start interacting with CoScientist, you can begin by simply asking it what it can do:
 
