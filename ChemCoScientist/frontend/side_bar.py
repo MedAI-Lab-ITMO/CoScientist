@@ -455,19 +455,16 @@ def load_dataset():
 
 def load_papers():  # TODO: add russian version
     """
-    loads submitted papers to the session state on button click
-    """
-    uploaded_papers = st.session_state.papers_file_uploader
-    if uploaded_papers is not None:
-    """
     Loads and processes uploaded scientific papers, storing their metadata in the session state.
-    
+
     Args:
         None
-    
+
     Returns:
         None
     """
+    uploaded_papers = st.session_state.papers_file_uploader
+    if uploaded_papers is not None:
         # Process file here
         st.write("File uploaded and processed")
 
