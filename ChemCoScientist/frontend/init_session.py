@@ -1,8 +1,11 @@
+import os
 import streamlit as st
 
 from dotenv import load_dotenv
 from ChemCoScientist.frontend.streamlit_endpoints import SELECTED_PAPERS
 from ChemCoScientist.frontend.utils import get_user_data_dir, get_user_session_id
+
+from definitions import ROOT_DIR
 
 load_dotenv()
 
@@ -10,10 +13,10 @@ load_dotenv()
 def init_page():
     """
     Displays a set of pre-defined example prompts for users to quickly input common chemistry-related queries.
-    
+
     Args:
         None
-    
+
     Returns:
         None
     """
@@ -22,7 +25,7 @@ def init_page():
     )
     st.title("🧪 Chemistry Chatbot")
     st.sidebar.image(
-        "frontend/logo_na_plashke_russkiy_belyy.png", width=150
+        os.path.join(ROOT_DIR, "ChemCoScientist/frontend/logo_na_plashke_russkiy_belyy.png"), width=150
     )
 
     init_session_state()
@@ -53,12 +56,12 @@ def init_page():
 
 def reset_selection():
     """
-    Resets the currently selected option and triggers a re-render of components 
+    Resets the currently selected option and triggers a re-render of components
     that depend on it. This ensures the UI reflects a clean, unselected state.
-    
+
     Args:
         None
-    
+
     Returns:
         None
     """
@@ -69,12 +72,12 @@ def reset_selection():
 def init_session_state():
     """
     Initializes the session state with default values.
-    
+
     This method sets up the initial state for the Streamlit session, ensuring that all necessary variables are present for a consistent user experience. It prepares the environment for interacting with the application, handling user preferences, data, and API keys.
-    
+
     Args:
         None
-    
+
     Initializes the following session state variables:
         language: The current language setting (default: "English").
         main_model_input: The input for the main model (default: None).
@@ -92,7 +95,7 @@ def init_session_state():
         user_data_dir: The directory for storing user-specific data (default: None).
         session_id: A unique identifier for the user's session, obtained using `get_user_session_id()` (default: generated session ID).
         explore_mode: Indicates if the exploration mode is used (default: False).
-    
+
     Returns:
         None
     """

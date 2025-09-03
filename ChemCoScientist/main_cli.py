@@ -18,7 +18,7 @@ from ChemCoScientist.agents.agents import (
 )
 from CoScientist.scientific_agents.agents import coder_agent
 from ChemCoScientist.tools import chem_tools_rendered, nano_tools_rendered, tools_rendered, paper_analysis_tools_rendered
-
+from definitions import ROOT_DIR
 
 # description for agent WITHOUT langchain-tools
 automl_agent_description = """
@@ -38,17 +38,17 @@ coder_agent_description = (
     "chemical libraries. Can perform calculations.\n "
 )
 
-paper_analysis_node_description = (
-    "'paper_analysis_node' - answers questions by retrieving and analyzing information "
-    "from a database of chemical scientific papers. Using this agent takes precedence over web search."
-)
+# paper_analysis_node_description = (
+#     "'paper_analysis_node' - answers questions by retrieving and analyzing information "
+#     "from a database of chemical scientific papers. Using this agent takes precedence over web search."
+# )
 web_search_description = "You can use web search to find information on the internet. "
 
 additional_agents_description = (
     automl_agent_description
     + dataset_builder_agent_description
     + coder_agent_description
-    + paper_analysis_node_description
+    # + paper_analysis_node_description
     + web_search_description
 )
 
@@ -70,7 +70,7 @@ conf = {
             "ml_dl_agent",
             "dataset_builder_agent",
             "coder_agent",
-            "paper_analysis_node",
+            "paper_analysis_agent",
             "web_search"
         ],
         # nodes for scenario agents
@@ -80,7 +80,7 @@ conf = {
             "ml_dl_agent": ml_dl_agent,
             "dataset_builder_agent": dataset_builder_agent,
             "coder_agent": coder_agent,
-            "paper_analysis_node": paper_analysis_agent,
+            "paper_analysis_agent": paper_analysis_agent,
             "web_search": web_search_node
         },
         # descripton for agents tools - if using langchain @tool
@@ -91,7 +91,7 @@ conf = {
             "dataset_builder_agent": [dataset_builder_agent_description],
             "coder_agent": [coder_agent_description],
             "ml_dl_agent": [automl_agent_description],
-            "paper_analysis_node": [paper_analysis_tools_rendered],
+            "paper_analysis_agent": [paper_analysis_tools_rendered],
             "web_search": [web_search_description],
         },
         # full descripton for agents tools
@@ -102,19 +102,19 @@ conf = {
                 "model_name": os.environ["SCENARIO_LLM_MODEL"],
                 "url": os.environ["SCENARIO_LLM_URL"],
                 "api_key": os.environ["OPENAI_API_KEY"],
-                "ds_dir": os.environ["DS_STORAGE_PATH"],
+                "ds_dir": os.path.join(ROOT_DIR, os.environ["DS_STORAGE_PATH"]),
             },
             "coder_agent": {
                 "model_name": os.environ["SCENARIO_LLM_MODEL"],
                 "url": os.environ["SCENARIO_LLM_URL"],
                 "api_key": os.environ["OPENAI_API_KEY"],
-                "ds_dir": os.environ["ANOTHER_STORAGE_PATH"],
+                "ds_dir": os.path.join(ROOT_DIR, os.environ["ANOTHER_STORAGE_PATH"]),
             },
             "ml_dl_agent": {
                 "model_name": os.environ["SCENARIO_LLM_MODEL"],
                 "url": os.environ["SCENARIO_LLM_URL"],
                 "api_key": os.environ["OPENAI_API_KEY"],
-                "ds_dir": os.environ["DS_STORAGE_PATH"],
+                "ds_dir": os.path.join(ROOT_DIR, os.environ["DS_STORAGE_PATH"]),
             },
         },
         # These prompts will be added in ProtoLLM
@@ -134,7 +134,8 @@ conf = {
                 "examples": None,
                 "additional_hints": "Before you start training models, plan to check your data for garbage using a dataset_builder_agent.\n \
                 If the user provides his dataset - immediately start training using ml_dl_agent (never call dataset_builder_agent)!\
-                        To find an answer, use the paper search first! NOT the web search!",
+                To find an answer, use the paper search first! NOT the web search!\
+                If paper_analysis_agent is called yoi MUST pass the original user query.",
             },
             "chat": {
                 "problem_statement": None,
@@ -192,7 +193,10 @@ conf = {
 # inputs = {"input": "Запусти обучение генеративной модели на данных '/Users/alina/Desktop/ИТМО/ChemCoScientist/data_dir_for_coder/chembl_ic50_data.xlsx', назови кейс IC50_chembl."}
 # inputs = {"input": "What can you do?"}
 # inputs = {"input": "Запусти предсказание с помощью мл-модели на значение IC50 для молекулы Fc1cc(F)c2ccc(Oc3cncc4nnc(-c5ccc(OC(F)F)cc5)n34)cc2c1."}
-inputs = {"input": "How does the synthesis of Glionitrin A/B happen based on research?"}
+inputs = {"input": "What components are involved in the synthesis of BASHY dyes, and what are the uses of these dyes?"}
+
+
+inputs = {"input": "What IC50 values do weakly active and highly active Bruton's tyrosine kinase inhibitors have?"}
 # inputs = {"input": "what papers have info on the Synthesis of Glionitrin A/B?"}
 # inputs = {"input": "what is the name of figure 1?"}
 # inputs = {"input": "How does the synthesis of Glionitrin A/B happen based on research?"}

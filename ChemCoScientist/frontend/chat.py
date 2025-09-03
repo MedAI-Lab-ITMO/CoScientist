@@ -3,10 +3,17 @@ import logging
 import os
 
 import streamlit as st
-from ChemCoScientist.frontend.utils import get_user_data_dir, get_user_session_id, save_all_files
+from io import BytesIO
 from langgraph.errors import GraphRecursionError
+from PIL import Image
+from urllib.parse import urlparse
+
+from definitions import ROOT_DIR
+from ChemCoScientist.frontend.utils import get_user_data_dir, get_user_session_id, save_all_files
 from ChemCoScientist.tools.utils import convert_to_base64, convert_to_html
 from ChemCoScientist.frontend.streamlit_endpoints import explore_my_papers
+from ChemCoScientist.frontend.utils import clean_folder
+from CoScientist.paper_parser.s3_connection import s3_service
 
 # Create a separate logger for chat.py
 logger = logging.getLogger("chat_logger")
@@ -150,19 +157,21 @@ def message_handler():
                 steps_container = st.container()
 
             if st.session_state.explore_mode:
+                print('In explore_mode section')
                 # Use explore_my_papers function instead of general AI assistant
-                result = explore_my_papers(inputs)
+                result = explore_my_papers(inputs.get('input', ''))
 
-                st.markdown(result["answer"])
+                # st.markdown(result["answer"])
 
                 st.session_state.messages[-1]["content"] = (result["answer"])
                 
             else:
+                print('In main graph section')
                 # result = st.session_state.backend.invoke(input=inputs, config=config)
                 try:
                     for result in st.session_state.backend.stream(inputs):
                         print("=================new step=================")
-                        print(result)
+                        # print(result)
 
                         if result.get("plan"):
                             plan = result["plan"]
@@ -231,8 +240,12 @@ def message_handler():
                         "Something went wrong. Please reload the page, initialize models and try again. If this happens again, check your base url and api key"
                     )
 
-            # st.session_state.messages.append({'role': 'assistant', "content": result['response']})
-            st.session_state.messages[-1]["content"] = result["response"]
+                # st.session_state.messages.append({'role': 'assistant', "content": result['response']})
+                st.session_state.messages[-1]["content"] = result["response"]
+
+                clean_folder(os.path.join(ROOT_DIR, os.environ["DS_STORAGE_PATH"]))
+                clean_folder(os.path.join(ROOT_DIR, os.environ["IMG_STORAGE_PATH"]))
+                clean_folder(os.path.join(ROOT_DIR, os.environ["ANOTHER_STORAGE_PATH"]))
 
             if st.session_state.images_b64:  # get user's submitted images
                 st.session_state.messages[-1][
@@ -334,7 +347,7 @@ def message_handler():
                     for img in gen_imgs:
                         st.components.v1.html(convert_to_html(img), height=200)
 
-                storage_path = os.environ.get("DS_STORAGE_PATH")
+                storage_path = os.path.join(ROOT_DIR, os.environ["DS_STORAGE_PATH"])
 
                 # search all files with 'users_dataset_'
                 pattern = os.path.join(storage_path, "users_dataset_*")
@@ -420,13 +433,14 @@ def display_paper_analysis_metadata(message, message_index):
             if images_context:
                 for i, image_item in enumerate(images_context):
                     img_key = f"img_checkbox_{message_index}_{i}"
+                    bucket_name, s3_key = urlparse(image_item).path.split('/', 2)[1:]
 
                     # Initialize image checkbox state if not present
                     if img_key not in st.session_state:
                         st.session_state[img_key] = False
 
                     show_img = st.checkbox(
-                        f"{i + 1}. {image_item}",
+                        f'{bucket_name}/{s3_key}',
                         value=st.session_state[img_key],
                         key=img_key
                     )
@@ -434,7 +448,9 @@ def display_paper_analysis_metadata(message, message_index):
                     # Display image if selected
                     if show_img:
                         try:
-                            st.image(image_item, caption=image_item, use_container_width=True)
+
+                            pil_image = Image.open(BytesIO(s3_service.get_image_bytes_from_s3(s3_key, bucket_name)))
+                            st.image(pil_image, caption=s3_key, use_container_width=True)
                         except Exception as e:
                             st.error(f"Could not display image: {image_item}. Error: {str(e)}")
             else:

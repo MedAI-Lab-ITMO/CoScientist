@@ -7,6 +7,7 @@ from streamlit_extras.grid import GridDeltaGenerator, grid
 from ChemCoScientist.tools.utils import convert_to_base64
 from ChemCoScientist.frontend.utils import file_uploader, clean_folder
 from ChemCoScientist.frontend.streamlit_endpoints import process_uploaded_paper
+from definitions import ROOT_DIR
 
 
 def init_language():
@@ -323,10 +324,7 @@ def init_backend():
     from ChemCoScientist.conf.create_conf import conf
 
     st.session_state.backend = GraphBuilder(conf)
-    # clean folder for new job here
-    clean_folder(os.environ['DS_STORAGE_PATH'])
-    clean_folder(os.environ['IMG_STORAGE_PATH'])
-    clean_folder(os.environ['ANOTHER_STORAGE_PATH'])
+
 
 def init_dataset():
     """
@@ -457,19 +455,16 @@ def load_dataset():
 
 def load_papers():  # TODO: add russian version
     """
-    loads submitted papers to the session state on button click
-    """
-    uploaded_papers = st.session_state.papers_file_uploader
-    if uploaded_papers is not None:
-    """
     Loads and processes uploaded scientific papers, storing their metadata in the session state.
-    
+
     Args:
         None
-    
+
     Returns:
         None
     """
+    uploaded_papers = st.session_state.papers_file_uploader
+    if uploaded_papers is not None:
         # Process file here
         st.write("File uploaded and processed")
 
@@ -597,15 +592,17 @@ def load_images():
 
     if files:
         images_b64 = []
-        os.makedirs(os.environ["IMG_STORAGE_PATH"], exist_ok=True)
+        os.makedirs(os.path.join(ROOT_DIR, os.environ["IMG_STORAGE_PATH"]), exist_ok=True)
 
         for image in files:
             # save the original file to dir
-            file_path = os.path.join(os.environ["IMG_STORAGE_PATH"], image.name)
+            file_path = os.path.join(ROOT_DIR, os.environ["IMG_STORAGE_PATH"], image.name)
+            print(f'IMAGE PATH: {file_path}')
 
             with open(file_path, "wb") as f:
                 f.write(image.getbuffer())
 
+            print('IMAGE SAVED')
             image_b64 = convert_to_base64(image)
             images_b64.append(image_b64)
 
