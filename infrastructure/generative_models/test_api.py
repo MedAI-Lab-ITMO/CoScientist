@@ -257,12 +257,12 @@ if __name__=='__main__':
     #                     data_path='/projects/generative_models_data/generative_models/transformer/docked_data_for_train/data_cyk_short.csv',
     #                     epochs=3)
     # train_gen_with_data(case = "QED_4version",
-    #                     url = "http://10.32.2.2:81/train_gen_models",
-    #                     target_column=["QED"],
-    #                      regression_props = ["QED"],
+    #                     url = "http://10.32.2.2:293/train_gen_models",
+    #                     target_column=["IC50"],
+    #                      regression_props = ["IC50"],
     #                     #classification_props = ['IC50'], #All propreties from dataframe you want to calculate in the end
     #                     fine_tune=True,
-    #                     data_path='/projects/generative_models_data/generative_models/transformer/docked_data_for_train/data_cyk_short.csv',
+    #                     data_path='/projects/CoScientist/infrastructure/generative_models/autotrain/data.csv',
     #                     epochs=2)
 
 
@@ -274,11 +274,11 @@ if __name__=='__main__':
     #                     data_path='infrastructure/automl/data/base_cases/docked_all_kinase_inhib.csv',
     #                     epochs=2)
     #call_for_gan_generation(numb_mol=100,case_='Alzheimer_regression_Minimum_Energy_Vitctor',url = "http://10.32.2.2:293/gan_case_generator")
-    print(call_for_generation(url="http://10.32.2.2:293/case_generator",case_='RNDM'))#'Alzhmr','Sklrz','Prkns','Cnsr','Dslpdm','TBLET', 'RNDM'
+    #print(call_for_generation(url="http://10.32.2.2:293/case_generator",case_='RNDM'))#'Alzhmr','Sklrz','Prkns','Cnsr','Dslpdm','TBLET', 'RNDM'
     
     #print(get_state_from_server(url = "http://10.32.2.2:193",case = "Alzheimer_regression"))
 
 
-    # print(generate_mol_by_case(case = "QED_4version",
-    #                     url = "http://10.32.2.2:81/generate_gen_models_by_case",
-    #                     n_samples=5))
+    print(generate_mol_by_case(case = "PAINS_predictor",
+                        url = "http://10.32.2.2:293/generate_gen_models_by_case",
+                        n_samples=5))
