@@ -117,7 +117,7 @@ def process_question(question: str) -> dict:
                 "image_context": A set of image paths identified as relevant to the question.
                 "metadata": Additional metadata returned by the LLM query.
     """
-    txt_data, img_data = PAPER_STORE.retrieve_context(question)
+    txt_data, img_data, papers = PAPER_STORE.retrieve_context(question)
     txt_context = ""
     img_paths = set()
 

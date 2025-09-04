@@ -23,7 +23,7 @@ from protollm.metrics import model_for_metrics
 
 metrics_init_params = {
     "model": model_for_metrics,
-    "verbose_mode": True,
+    "verbose_mode": False,
     "async_mode": False,
 }
 correctness_metric = GEval(
@@ -63,6 +63,15 @@ def query_pure_llm(model_url: str, question: str) -> tuple:
 
     res = llm.invoke(messages)
     return res.content, res.response_metadata
+
+
+def intersection_ratio(row, col1, col2):
+    list1 = [elem.strip().lower() for elem in row[col1].split(";\n")]
+    list2 = [elem.lower() for elem in eval(row[col2])]
+    if len(list1) == 0:
+        return 0
+    intersection = set(list1) & set(list2)
+    return len(intersection) / len(list1)
 
 
 class Timer:
@@ -192,10 +201,12 @@ def pipeline_test_with_save(
     out_dir.mkdir(parents=True, exist_ok=True)
     path_to_results = Path(out_dir, f"pipeline_test_{m_name}_v{version}.txt")
     path_to_df = Path(out_dir, f"pipeline_test_{m_name}_v{version}.csv")
+    path_to_df_extended = Path(out_dir, f"pipeline_test_{m_name}_v{version}_extended.csv")
     
     columns = [
-        "index", "question", "correct_paper", "correct_context", "txt_context_from_db", "img_context_from_db",
-        "correct_answer", "answer_from_model", "context_retrieve_time", "answer_generation_time"
+        "index", "question", "correct_paper", "correct_context", "papers_for_question", "txt_context_from_db",
+        "img_context_from_db", "correct_answer", "answer_from_model", "context_retrieve_time",
+        "answer_generation_time", "level", "category"
     ]
     for metric in metrics_to_calculate:
         columns.append(f"{metric.__name__}_score")
@@ -220,21 +231,25 @@ def pipeline_test_with_save(
             print(f"Processing question {i}")
             question = row["question"].replace('"', "'")
             correct_answer = row["correct_answer"]
-            correct_context = "\n".join(
-                [str(row["correct_txt_context"]), str(row["correct_img_context"]), str(row["correct_table_context"])]
-            )
+            # correct_context = "\n".join(
+            #     [str(row["correct_txt_context"]), str(row["correct_img_context"]), str(row["correct_table_context"])]
+            # )
+            correct_context = str(row["correct_txt_context"])
             
             row_data = {
                 "index": i,
                 "question": question,
-                "correct_paper": row["paper_name"],
+                "correct_paper": row["file_name"],
                 "correct_context": correct_context,
+                "papers_for_question": None,
                 "txt_context_from_db": None,
                 "img_context_from_db": None,
                 "correct_answer": correct_answer,
                 "answer_from_model": "",
                 "context_retrieve_time": None,
-                "answer_generation_time": None
+                "answer_generation_time": None,
+                "level": row["level"],
+                "category": row["category"]
             }
             
             for metric in metrics_to_calculate:
@@ -243,10 +258,11 @@ def pipeline_test_with_save(
             
             with Timer() as t:
                 try:
-                    txt_data, img_data = paper_store.retrieve_context(
+                    txt_data, img_data, papers = paper_store.retrieve_context(
                         question
                     )  # for pure LLM test comment this method call
                     row_data["context_retrieve_time"] = t.seconds_from_start
+                    row_data["papers_for_question"] = papers['answer']
                 except Exception as e:
                     print(f"Context retrieval failed: {str(e)}")
                     txt_context = ''
@@ -306,7 +322,12 @@ def pipeline_test_with_save(
     result_df["total_time"] = (
             result_df["context_retrieve_time"] + result_df["answer_generation_time"]
     )
+    result_df.loc[:, "correct_papers_or_not"] = result_df.apply(
+        lambda row: intersection_ratio(row, "correct_paper", "papers_for_question"), axis=1
+    )
+    result_df.to_csv(path_to_df_extended, index=False)
     # Calculation of basic statistics for exec time and function selection
+    average_correct_paper = result_df["correct_papers_or_not"].mean().round(2)
     avg_context_retrieve_time = result_df["context_retrieve_time"].mean().round(2)
     avg_ans_generation_time = result_df["answer_generation_time"].mean().round(2)
     avg_total_time = result_df["total_time"].mean().round(2)
@@ -325,6 +346,7 @@ def pipeline_test_with_save(
     to_print = f"""Average context retrieving time: {avg_context_retrieve_time}
 Average answer generation time: {avg_ans_generation_time}
 Average total time: {avg_total_time}
+Average correct paper fraction: {average_correct_paper}
 Short metrics results:
 {short_metrics_result}"""
     
@@ -346,5 +368,5 @@ if __name__ == "__main__":
 
     v = 0.1
     pipeline_test_with_save(
-        all_questions, [correctness_metric], model_name, model_url, v, out_dir, paper_store
+        all_questions, [correctness_metric, context_recall], model_name, model_url, v, out_dir, paper_store
     )

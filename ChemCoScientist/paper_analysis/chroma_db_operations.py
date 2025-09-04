@@ -440,7 +440,7 @@ class ChromaDBPaperStore:
 
     def retrieve_context(
             self, query: str, relevant_papers: dict = None
-    ) -> tuple[list, dict]:
+    ) -> tuple[list, dict, dict]:
         """
         Retrieves relevant information from text and images associated with scientific papers based on a user query.
 
@@ -473,7 +473,7 @@ class ChromaDBPaperStore:
             self.img_chunk_num,
         )
         text_context = self.search_with_reranker(query, raw_text_context, top_k=5)
-        return text_context, image_context
+        return text_context, image_context, relevant_papers
     
     def search_with_reranker(self, query: str, initial_results, top_k: int = 1) -> list[tuple[str, str, dict, float]]:
         """
