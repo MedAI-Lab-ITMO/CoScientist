@@ -29,11 +29,16 @@ metrics_init_params = {
 correctness_metric = GEval(
     name="Correctness",
     evaluation_steps=[
-        "If all essential information from the expected output is present in the actual output, regardless "
-        "of wording or structure, it is OK.",
-        "Actual output does not necessarily have to match word for word with the expected output.",
-        "If the numeric values don't match, it's not OK.",
-        "**It is STRICTLY FORBIDDEN to lower the score for expanding the answer** if the main meaning and data are correct.",
+        "If there are numeric values in the expected output, compare the numeric values from the actual output with the"
+        " corresponding values from the expected output"
+        " (if at least one value is missing or incorrect (except in cases where missing numeric values do not affect "
+        " the accuracy of the information provided) -> LOW SCORE, else -> HIGH SCORE)",
+        "Compare textual facts regardless of the formulations used and their order"
+        " (if the facts are all OK -> LOW SCORE, else -> HIGH SCORE)",
+        "Estimate the amount of filler text in the actual output"
+        " (if there is a lot of it -> LOW SCORE, else -> HIGH SCORE)"
+        "If the actual output does not contain an answer to the INPUT or reports that it cannot answer"
+        " -> VERY LOW SCORE"
     ],
     evaluation_params=[
         LLMTestCaseParams.INPUT,
@@ -261,8 +266,8 @@ def pipeline_test_with_save(
                     txt_data, img_data, papers = paper_store.retrieve_context(
                         question
                     )  # for pure LLM test comment this method call
+                    row_data["papers_for_question"] = papers['answer'] # for pure LLM test comment this line
                     row_data["context_retrieve_time"] = t.seconds_from_start
-                    row_data["papers_for_question"] = papers['answer']
                 except Exception as e:
                     print(f"Context retrieval failed: {str(e)}")
                     txt_context = ''
@@ -284,7 +289,8 @@ def pipeline_test_with_save(
             with Timer() as t:
                 try:
                     llm_res, _ = query_llm(m_url, question, txt_context, list(img_paths))
-                    # llm_res, _ = query_pure_llm(m_url, question)  # comment out this line for pure LLM
+                    # comment out next line for pure LLM and comment previous line
+                    # llm_res, _ = query_pure_llm(m_url, question)
                     row_data["answer_from_model"] = llm_res
                 except Exception as e:
                     print(f"Answer generation failed: {str(e)}")

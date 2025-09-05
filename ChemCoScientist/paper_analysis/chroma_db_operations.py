@@ -259,7 +259,7 @@ class ChromaDBPaperStore:
         self.img_collection_name = os.getenv("IMAGES_COLLECTION_NAME")
 
         self.sum_chunk_num = 15
-        self.final_sum_chunk_num = 3
+        self.final_sum_chunk_num = 7
         self.txt_chunk_num = 15
         self.img_chunk_num = 2
 
