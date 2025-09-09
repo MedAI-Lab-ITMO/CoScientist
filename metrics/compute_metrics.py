@@ -72,7 +72,11 @@ def query_pure_llm(model_url: str, question: str) -> tuple:
 
 def intersection_ratio(row, col1, col2):
     list1 = [elem.strip().lower() for elem in row[col1].split(";\n")]
-    list2 = [elem.lower() for elem in eval(row[col2])]
+    try:
+        pap = eval(row[col2])
+    except:
+        pap = ''
+    list2 = [elem.lower() for elem in pap]
     if len(list1) == 0:
         return 0
     intersection = set(list1) & set(list2)
@@ -363,7 +367,7 @@ Short metrics results:
 
 
 if __name__ == "__main__":
-    path_to_data = "../PaperAnalysis/questions/DataSet_FinalData.csv"
+    path_to_data = "../PaperAnalysis/questions/DataSet-Results.csv"
     out_dir = Path("../PaperAnalysis/test_results")
     all_questions = pd.read_csv(path_to_data)
 
