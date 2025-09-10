@@ -10,7 +10,6 @@ from ChemCoScientist.paper_analysis.prompts import sys_prompt, explore_my_papers
 from ChemCoScientist.paper_analysis.settings import allowed_providers
 from CoScientist.paper_parser.utils import convert_to_base64, prompt_func
 from definitions import CONFIG_PATH
-from ChemCoScientist.frontend.utils import update_activity
 
 load_dotenv(CONFIG_PATH)
 
@@ -189,6 +188,7 @@ if __name__ == "__main__":
     question = 'What is the title of an article?'
     question = 'What components are involved in the synthesis of BASHY dyes, and what are the uses of these dyes?'
     question = 'What IC50 values do weakly active and highly active Bruton\'s tyrosine kinase inhibitors have?'
+    question = 'How does the synthesis of Glionitrin A/B happen?'
 
     # res = simple_query_llm(VISION_LLM_URL, question, [paper])
     res = process_question(question)

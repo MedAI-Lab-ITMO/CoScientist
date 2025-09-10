@@ -58,7 +58,6 @@ logging.basicConfig(level=logging.INFO)
 
 
 def query_pure_llm(model_url: str, question: str) -> tuple:
-
     llm = create_llm_connector(model_url)
 
     messages = [
@@ -72,11 +71,7 @@ def query_pure_llm(model_url: str, question: str) -> tuple:
 
 def intersection_ratio(row, col1, col2):
     list1 = [elem.strip().lower() for elem in row[col1].split(";\n")]
-    try:
-        pap = eval(row[col2])
-    except:
-        pap = ''
-    list2 = [elem.lower() for elem in pap]
+    list2 = [elem.lower() for elem in eval(row[col2])]
     if len(list1) == 0:
         return 0
     intersection = set(list1) & set(list2)
@@ -84,101 +79,26 @@ def intersection_ratio(row, col1, col2):
 
 
 class Timer:
-    """
-    A context manager for measuring the execution time of a code block.
-    
-        Attributes:
-            start_time: Stores the time when the timer is started.
-            spent_time: Stores the total time elapsed.
-    """
-
     def __init__(self):
-        """
-        Initializes a new instance of the Timer class.
-        
-        Sets the initial state of the process_terminated flag to False, 
-        signifying that any associated process is initially running.
-        
-        Args:
-            self: The Timer instance being initialized.
-        
-        Returns:
-            None
-        """
         self.process_terminated = False
-    
+
     def __enter__(self):
-        """
-        Enters the context and records the start time.
-        
-        This method is called when a `with` statement is entered. It captures the current time to accurately measure the duration of the block of code that follows.
-        
-        Args:
-            self: The Timer instance.
-        
-        Returns:
-            self: The Timer instance, enabling its use within the `with` statement.
-        """
         self.start = datetime.datetime.now()
         return self
-    
+
     @property
     def start_time(self):
-        """
-        Returns the process's start time.
-        
-                This property provides access to the time when the timed operation began. 
-                It's useful for calculating durations and analyzing performance.
-        
-                Returns:
-                    float: The start time of the process, represented as a timestamp.
-        """
         return self.start
-    
+
     @property
     def spent_time(self) -> datetime.timedelta:
-        """
-        Calculates the time elapsed since the timer was started.
-        
-        Args:
-                self: The Timer instance.
-        
-        Returns:
-                datetime.timedelta: The time elapsed since the timer was started.
-        """
         return datetime.datetime.now() - self.start_time
-    
+
     @property
     def seconds_from_start(self) -> float:
-        """
-        Calculates the total elapsed time in seconds since the timer started.
-        
-        Args:
-            self: The instance of the Timer class.
-        
-        Returns:
-            float: The total elapsed time in seconds, rounded to two decimal places.
-        
-        This method provides a precise measurement of the duration the timer has been active, 
-        allowing for accurate tracking of task completion times or process durations. 
-        It achieves this by accessing the internally stored `spent_time` and converting it to total seconds.
-        """
         return round(self.spent_time.total_seconds(), 2)
-    
+
     def __exit__(self, *args):
-        """
-        Exits the context manager.
-        
-        This method is called when the `with` statement block is exited, allowing for resource cleanup and state finalization. It signals whether the managed process has already terminated.
-        
-        Args:
-            self: The instance of the Timer context manager.
-            *args: Positional arguments representing exception information 
-                   passed from the `with` statement's exception handling (if any).
-        
-        Returns:
-            bool: `True` if the managed process had terminated before exiting the context, `False` otherwise.
-        """
         return self.process_terminated
 
 
@@ -191,27 +111,25 @@ def pipeline_test_with_save(
         out_dir: Path,
         paper_store: ChromaDBPaperStore
 ) -> pd.DataFrame:
-    """
-    Evaluates the pipeline's performance by processing a dataset of questions and comparing model responses to expected answers.
-    
+    """Tests pipeline.
+
     Args:
-        data: DataFrame containing questions, correct answers, and associated paper/context information.
-        metrics_to_calculate: List of metric functions to assess the quality of the pipeline's responses.
-        m_name: Name of the model being tested.
-        m_url: URL or identifier for the model.
-        version: Version number of the test run.
-        out_dir: Directory to store the test results.
-        paper_store: Interface for retrieving relevant scientific context from a database.
-    
-    Returns:
-        pandas DataFrame: DataFrame containing the test results, including questions, responses, metrics scores, and timing information.
+        data: questions, correct context/answer etc.
+        metrics_to_calculate: list of metrics to be calculated
+        m_name: string with model name
+        m_url: string with model URL and name
+        version: test version
+        out_dir: path to directory with results
+        paper_store: connector to DB
+
+    Returns: pandas DataFrame
     """
     print("Pipeline test is running...")
     out_dir.mkdir(parents=True, exist_ok=True)
     path_to_results = Path(out_dir, f"pipeline_test_{m_name}_v{version}.txt")
     path_to_df = Path(out_dir, f"pipeline_test_{m_name}_v{version}.csv")
     path_to_df_extended = Path(out_dir, f"pipeline_test_{m_name}_v{version}_extended.csv")
-    
+
     columns = [
         "index", "question", "correct_paper", "correct_context", "papers_for_question", "txt_context_from_db",
         "img_context_from_db", "correct_answer", "answer_from_model", "context_retrieve_time",
@@ -220,7 +138,7 @@ def pipeline_test_with_save(
     for metric in metrics_to_calculate:
         columns.append(f"{metric.__name__}_score")
         columns.append(f"{metric.__name__}_reason")
-    
+
     if path_to_df.exists():
         existing_df = pd.read_csv(path_to_df)
         clear_existing_df = existing_df.drop_duplicates(subset=["index"], keep=False)
@@ -231,11 +149,11 @@ def pipeline_test_with_save(
         existing_df = pd.DataFrame(columns=columns)
         existing_df.to_csv(path_to_df, index=False)
         start_index = 0
-    
+
     for i, row in data.iterrows():
         if i < start_index:
             continue
-        
+
         try:
             print(f"Processing question {i}")
             question = row["question"].replace('"', "'")
@@ -244,7 +162,7 @@ def pipeline_test_with_save(
             #     [str(row["correct_txt_context"]), str(row["correct_img_context"]), str(row["correct_table_context"])]
             # )
             correct_context = str(row["correct_txt_context"])
-            
+
             row_data = {
                 "index": i,
                 "question": question,
@@ -260,17 +178,17 @@ def pipeline_test_with_save(
                 "level": row["level"],
                 "category": row["category"]
             }
-            
+
             for metric in metrics_to_calculate:
                 row_data[f"{metric.__name__}_score"] = -1
                 row_data[f"{metric.__name__}_reason"] = ""
-            
+
             with Timer() as t:
                 try:
                     txt_data, img_data, papers = paper_store.retrieve_context(
                         question
                     )  # for pure LLM test comment this method call
-                    row_data["papers_for_question"] = papers['answer'] # for pure LLM test comment this line
+                    row_data["papers_for_question"] = papers['answer']  # for pure LLM test comment this line
                     row_data["context_retrieve_time"] = t.seconds_from_start
                 except Exception as e:
                     print(f"Context retrieval failed: {str(e)}")
@@ -289,7 +207,7 @@ def pipeline_test_with_save(
                 ### -------------------------------------------- ###
                 row_data["txt_context_from_db"] = txt_context
                 row_data["img_context_from_db"] = img_paths
-                
+
             with Timer() as t:
                 try:
                     llm_res, _ = query_llm(m_url, question, txt_context, list(img_paths))
@@ -316,18 +234,18 @@ def pipeline_test_with_save(
                 except Exception as e:
                     row_data[f"{metric.__name__}_score"] = -1
                     row_data[f"{metric.__name__}_reason"] = f"{type(e).__name__}: {str(e)}"
-            
+
             row_df = pd.DataFrame([row_data])
             with open(path_to_df, 'a', newline='') as f:
                 row_df.to_csv(f, header=f.tell() == 0, index=False)
-        
+
         except Exception as e:
             print(f"Critical error processing question {i}: {str(e)}")
             if 'row_df' in locals():
                 with open(path_to_df, 'a', newline='') as f:
                     row_df.to_csv(f, header=f.tell() == 0, index=False)
             raise
-        
+
     result_df = pd.read_csv(path_to_df)
     result_df["total_time"] = (
             result_df["context_retrieve_time"] + result_df["answer_generation_time"]
@@ -352,22 +270,22 @@ def pipeline_test_with_save(
             f"- Average {column} is {avg_score}. Number of unsuccessfully processed questions {failed_evaluations}"
         )
     short_metrics_result = "\n".join(metrics_to_print)
-    
+
     to_print = f"""Average context retrieving time: {avg_context_retrieve_time}
 Average answer generation time: {avg_ans_generation_time}
 Average total time: {avg_total_time}
 Average correct paper fraction: {average_correct_paper}
 Short metrics results:
 {short_metrics_result}"""
-    
+
     with open(path_to_results, "w") as f:
         print(to_print, file=f)
-    
+
     return result_df
 
 
 if __name__ == "__main__":
-    path_to_data = "../PaperAnalysis/questions/DataSet-Results.csv"
+    path_to_data = "../PaperAnalysis/questions/DataSet_FinalData.csv"
     out_dir = Path("../PaperAnalysis/test_results")
     all_questions = pd.read_csv(path_to_data)
 
