@@ -211,7 +211,10 @@ class ChromaDBPaperStore:
         - reranker: Reranker model for refining search results.
     """
 
-    def __init__(self):
+    def __init__(self,
+                 sum_collection_name: str | None = None,
+                 txt_collection_name: str | None = None,
+                 img_collection_name: str | None = None):
         """
         Initializes the multimodal retriever.
 
@@ -223,9 +226,9 @@ class ChromaDBPaperStore:
         Initializes the following class fields:
             llm_url (str): The URL for the Large Language Model (LLM). Defaults to VISION_LLM_URL.
             client (ChromaClient): An instance of ChromaClient for interacting with the Chroma database.
-            sum_collection_name (str): The name of the Chroma collection for summaries, read from environment variables.
-            txt_collection_name (str): The name of the Chroma collection for texts, read from environment variables.
-            img_collection_name (str): The name of the Chroma collection for images, read from environment variables.
+            sum_collection_name (str): The name of the Chroma collection for summaries.
+            txt_collection_name (str): The name of the Chroma collection for texts.
+            img_collection_name (str): The name of the Chroma collection for images.
             sum_chunk_num (int): The number of chunks for summaries. Defaults to 15.
             final_sum_chunk_num (int): The number of chunks for final summaries. Defaults to 3.
             txt_chunk_num (int): The number of chunks for texts. Defaults to 15.
@@ -242,9 +245,9 @@ class ChromaDBPaperStore:
 
         self.client = ChromaClient()
 
-        self.sum_collection_name = os.getenv("SUMMARIES_COLLECTION_NAME")
-        self.txt_collection_name = os.getenv("TEXTS_COLLECTION_NAME")
-        self.img_collection_name = os.getenv("IMAGES_COLLECTION_NAME")
+        self.sum_collection_name = sum_collection_name or os.getenv("SUMMARIES_COLLECTION_NAME")
+        self.txt_collection_name = txt_collection_name or os.getenv("TEXTS_COLLECTION_NAME")
+        self.img_collection_name = img_collection_name or os.getenv("IMAGES_COLLECTION_NAME")
 
         self.sum_chunk_num = 15
         self.final_sum_chunk_num = 3
