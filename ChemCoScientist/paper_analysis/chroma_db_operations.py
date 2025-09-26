@@ -20,7 +20,8 @@ import requests
 from ChemCoScientist.paper_analysis.prompts import summarisation_prompt
 from ChemCoScientist.paper_analysis.settings import allowed_providers
 from ChemCoScientist.paper_analysis.settings import settings as default_settings
-from CoScientist.paper_parser.s3_connection import S3BucketService, s3_service
+from CoScientist.paper_parser.s3_connection import S3BucketService
+from CoScientist.paper_parser.s3_connection import s3_service as default_s3_service
 from CoScientist.paper_parser.parse_and_split import (
     clean_up_html,
     html_chunking,
@@ -691,7 +692,7 @@ def clean_up_storages(embedding_storage: ChromaDBPaperStore, file_storage: S3Buc
             print(f"Error during S3 cleanup for {paper_name}: {s3_cleanup_error}")
 
 
-def process_single_document(folder_path: Path):
+def process_single_document(folder_path: Path, s3_service: S3BucketService):
     """
     Processes a single document (paper) from a given folder path.
 
@@ -738,7 +739,7 @@ def process_single_document(folder_path: Path):
         print(f"Cleanup completed for {paper_name}")
 
 
-def process_all_documents(base_dir: Path):
+def process_all_documents(base_dir: Path, s3_service: S3BucketService | None = None):
     """
     Processes documents within subdirectories of a given base directory in parallel.
 
@@ -751,9 +752,10 @@ def process_all_documents(base_dir: Path):
     Returns:
         None
     """
+    s3_service = s3_service or default_s3_service
     folders = [d for d in base_dir.iterdir() if d.is_dir()]
     with ThreadPoolExecutor(max_workers=2, initializer=init_process()) as pool:
-        pool.map(process_single_document, [folder for folder in folders])
+        pool.map(lambda folder: process_single_document(folder, s3_service), folders)
 
 
 if __name__ == "__main__":
