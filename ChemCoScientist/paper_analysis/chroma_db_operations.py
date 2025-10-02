@@ -651,7 +651,6 @@ class ChromaDBPaperStore:
                 {"source": {"$in": [f"{paper_name}.pdf"]}},
                 10000
             )["ids"][0]
-            print(ids_to_delete)
             if len(ids_to_delete) > 0:
                 collection.delete(ids=ids_to_delete)
                 print(f"Deleted {len(ids_to_delete)} documents from {collection.name} collection")
