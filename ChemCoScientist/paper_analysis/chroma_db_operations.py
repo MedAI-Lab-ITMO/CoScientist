@@ -20,7 +20,7 @@ import requests
 from ChemCoScientist.paper_analysis.prompts import summarisation_prompt
 from ChemCoScientist.paper_analysis.settings import allowed_providers
 from ChemCoScientist.paper_analysis.settings import settings as default_settings
-from CoScientist.paper_parser.s3_connection import s3_service
+from CoScientist.paper_parser.s3_connection import S3BucketService, s3_service
 from CoScientist.paper_parser.parse_and_split import (
     clean_up_html,
     html_chunking,
@@ -633,6 +633,30 @@ class ChromaDBPaperStore:
         except Exception as e:
             logger.error(f"Reranker service error: {str(e)}")
             raise
+        
+    def clean_up_collections(self, paper_name: str):
+        """
+        Deletes all documents related to one article from all collections.
+        
+        Args:
+            paper_name: A name of the article file
+
+        Returns:
+            None
+        """
+        for collection in [self.sum_collection, self.txt_collection, self.img_collection]:
+            ids_to_delete = p_store.client.query_chromadb(
+                collection,
+                "",
+                {"source": {"$in": [f"{paper_name}.pdf"]}},
+                10000
+            )["ids"][0]
+            print(ids_to_delete)
+            if len(ids_to_delete) > 0:
+                collection.delete(ids=ids_to_delete)
+                print(f"Deleted {len(ids_to_delete)} documents from {collection.name} collection")
+            else:
+                print(f"No documents to delete for {paper_name}.pdf in {collection.name} collection")
 
 
 process_local_store: ChromaDBPaperStore = None
@@ -655,6 +679,18 @@ def init_process():
     """
     global process_local_store
     process_local_store = ChromaDBPaperStore()
+    
+
+def clean_up_storages(embedding_storage: ChromaDBPaperStore, file_storage: S3BucketService, paper_name: str):
+    try:
+        embedding_storage.clean_up_collections(paper_name)
+    except Exception as cleanup_error:
+        print(f"Error during vector store cleanup for {paper_name}: {cleanup_error}")
+    if USE_S3:
+        try:
+            file_storage.clean_up_by_prefix(paper_name)
+        except Exception as s3_cleanup_error:
+            print(f"Error during S3 cleanup for {paper_name}: {s3_cleanup_error}")
 
 
 def process_single_document(folder_path: Path):
@@ -673,12 +709,14 @@ def process_single_document(folder_path: Path):
     Returns:
         None
     """
-    paper_name = folder_path.name.replace("_marker", "")
+    paper_name = folder_path.name
     paper_name_to_load = Path(paper_name + ".pdf")
     parsed_file_path = Path(folder_path, paper_name + ".html")
     with open(parsed_file_path, 'r', encoding='utf-8') as f:
         text = f.read()
     try:
+        print("Checking for documents in ChromaDB and files in S3...")
+        clean_up_storages(process_local_store, s3_service, paper_name)
         print(f"Starting post-processing paper: {paper_name}")
         if USE_S3:
             parsed_paper, mapping = clean_up_html(folder_path, paper_name, text, s3_service, paper_name)
@@ -699,6 +737,9 @@ def process_single_document(folder_path: Path):
             clean_up_after_processing(folder_path)
     except Exception as e:
         print(f"Error in {paper_name}: {str(e)}")
+        print(f"Cleaning up data for {paper_name}...")
+        clean_up_storages(process_local_store, s3_service, paper_name)
+        print(f"Cleanup completed for {paper_name}")
 
 
 def process_all_documents(base_dir: Path):
@@ -730,10 +771,5 @@ if __name__ == "__main__":
     del p_store
     process_all_documents(Path(res_path))
     
-    # p_store.client.delete_collection(name="test_paper_summaries_img2txt")
-    # p_store.client.delete_collection(name="test_text_context_img2txt")
-    # p_store.client.delete_collection(name="test_image_context")
-    # print(p_store.client.show_collections())
+    # p_store.clean_up_collections("paper-filename")  # pass filename without .pdf
     
-    # print(ChromaDBPaperStore.get_embeddings(["hello", "world"]))
-    # print(ChromaDBPaperStore.rerank([["hello", "world"], ["hello", "there"]]))
