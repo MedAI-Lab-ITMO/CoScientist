@@ -432,7 +432,6 @@ class ChromaDBPaperStore:
         """
         chunks_num = chunks_num if chunks_num else self.sum_chunk_num
         final_chunks_num = final_chunks_num if final_chunks_num else self.final_sum_chunk_num
-
         raw_docs = self.client.query_chromadb(
             self.sum_collection, query, chunk_num=chunks_num, metadata_filter=meta_filter
         )
@@ -664,7 +663,7 @@ class ChromaDBPaperStore:
 process_local_store: ChromaDBPaperStore = None
 
 
-def init_process():
+def init_process(paper_store: ChromaDBPaperStore = None):
     """
     Initializes a process-local storage for papers.
 
@@ -677,7 +676,7 @@ def init_process():
         None
     """
     global process_local_store
-    process_local_store = ChromaDBPaperStore()
+    process_local_store = paper_store or ChromaDBPaperStore()
     
 
 def clean_up_storages(embedding_storage: ChromaDBPaperStore, file_storage: S3BucketService, paper_name: str):
@@ -692,7 +691,7 @@ def clean_up_storages(embedding_storage: ChromaDBPaperStore, file_storage: S3Buc
             print(f"Error during S3 cleanup for {paper_name}: {s3_cleanup_error}")
 
 
-def process_single_document(folder_path: Path, s3_service: S3BucketService):
+def process_single_document(folder_path: Path, s3_service: S3BucketService, s3_prefix: str = None):
     """
     Processes a single document (paper) from a given folder path.
 
@@ -716,7 +715,8 @@ def process_single_document(folder_path: Path, s3_service: S3BucketService):
         clean_up_storages(process_local_store, s3_service, paper_name)
         print(f"Starting post-processing paper: {paper_name}")
         if USE_S3:
-            parsed_paper, mapping = clean_up_html(folder_path, paper_name, text, s3_service, paper_name)
+            s3_paper_name = f"{s3_prefix}/{paper_name}" if s3_prefix else paper_name
+            parsed_paper, mapping = clean_up_html(folder_path, paper_name, text, s3_service, s3_paper_name)
         else:
             parsed_paper, mapping = clean_up_html(folder_path, paper_name, text)
         print(f"Finished post-processing paper: {paper_name}")
@@ -739,7 +739,10 @@ def process_single_document(folder_path: Path, s3_service: S3BucketService):
         print(f"Cleanup completed for {paper_name}")
 
 
-def process_all_documents(base_dir: Path, s3_service: S3BucketService | None = None):
+def process_all_documents(base_dir: Path,
+                          s3_service: S3BucketService | None = None,
+                          s3_prefix: str = None,
+                          paper_store: ChromaDBPaperStore | None = None):
     """
     Processes documents within subdirectories of a given base directory in parallel.
 
@@ -752,10 +755,11 @@ def process_all_documents(base_dir: Path, s3_service: S3BucketService | None = N
     Returns:
         None
     """
+    paper_store = paper_store or ChromaDBPaperStore()
     s3_service = s3_service or default_s3_service
     folders = [d for d in base_dir.iterdir() if d.is_dir()]
-    with ThreadPoolExecutor(max_workers=2, initializer=init_process()) as pool:
-        pool.map(lambda folder: process_single_document(folder, s3_service), folders)
+    with ThreadPoolExecutor(max_workers=2, initializer=init_process(paper_store)) as pool:
+        pool.map(lambda folder: process_single_document(folder, s3_service, s3_prefix), folders)
 
 
 if __name__ == "__main__":

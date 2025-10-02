@@ -80,4 +80,5 @@ def extract_s3_bucket_and_key(s3_url: str):
     """
     o = urlparse(s3_url)
     bucket, key = o.path.split('/', 2)[1:]
+    key = key.replace("/", "\\") if "test_paper" in key else key # костыль
     return key, bucket
