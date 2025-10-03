@@ -291,8 +291,9 @@ def paper_analysis_agent(state: dict, config: dict) -> Command:
     task = state["task"]
     explore_my_papers_details = """
     You are a helpful assistant. You can use provided tools. If there is no appropriate tool, or you can't use one,
-     answer yourself. 
-     It is strictly forbidden to call 'explore_my_papers' except when user told you to call it directly.
+     answer yourself.
+     the most useful tool is 'explore_chemistry_database'. Call to get a lot of domain chemistry data. 
+     It is strictly forbidden to call 'explore_my_papers' and 'select_papers' except when user told you to call it directly.     
      """
     # TODO: update this when proper frontend is added
     try:
