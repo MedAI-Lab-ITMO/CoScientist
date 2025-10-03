@@ -69,10 +69,10 @@ def session_cleanup(client: ChromaClient,
     if any(name in collections_list for name in collection_names.values()):
         raise AssertionError("Some collections are still present in Chroma!")
     
-    objects_to_delete = s3_service.list_objects(prefix=f"{s3_prefix}\\test_paper")
+    objects_to_delete = s3_service.list_objects(prefix=f"{s3_prefix}/test_paper")
     for obj in objects_to_delete:
-        s3_service.delete_file_object(f"{s3_prefix}\\test_paper", obj.split("\\")[-1])
-    if s3_service.list_objects(prefix=f"{s3_prefix}\\test_paper") != []:
+        s3_service.delete_file_object(f"{s3_prefix}/test_paper", obj.split("/")[-1])
+    if s3_service.list_objects(prefix=f"{s3_prefix}/test_paper") != []:
         raise AssertionError("Some test objects are still present in S3!")
     
     picture_path = f"{PAPERS_STORAGE_PATH}/_page_0_Figure_10.jpeg"
@@ -111,7 +111,8 @@ class TestPaperAnalysis:
         assert os.path.isfile(os.path.join(PARSE_RESULTS_PATH, "test_paper/test_paper.html"))
         assert os.path.isfile(os.path.join(PARSE_RESULTS_PATH, "test_paper/_page_3_Figure_7.jpeg"))
         process_all_documents(Path(PARSE_RESULTS_PATH), s3_service, s3_prefix, paper_store)
-        assert f"{s3_prefix}\\test_paper\\_page_0_Figure_10.jpeg" in s3_service.list_objects(prefix=f"{s3_prefix}\\test_paper")
+        assert f"{s3_prefix}/test_paper/test_paper_processed.html" in s3_service.list_objects(prefix=f"{s3_prefix}/test_paper")
+        assert f"{s3_prefix}/test_paper/_page_0_Figure_10.jpeg" in s3_service.list_objects(prefix=f"{s3_prefix}/test_paper")
         collection = client.get_or_create_chroma_collection(collection_names["sum"])
         results = [m["source"] for m in collection.get(include=["metadatas"]).get("metadatas")]
         assert "test_paper.pdf" in results
@@ -131,11 +132,9 @@ class TestPaperAnalysis:
         for field in ("text_context", "image_context", "metadata"):
             assert field in meta
             assert meta[field] not in (None, "", [], {})
-        assert meta["text_context"].count(". Metadata: ") > 0
-        print(f"Nember of chunks in text context: {meta["text_context"].count(". Metadata: ")}")
-        assert len(meta["image_context"]) > 0
-        print(f"Nember of images in images context: {len(meta["image_context"])}")
-        s3_service.download_image_from_s3(f"{s3_prefix}\\test_paper\\_page_0_Figure_10.jpeg",
+        assert meta["text_context"].count(". Metadata: ") == 5
+        assert len(meta["image_context"]) >= 2
+        s3_service.download_image_from_s3(f"{s3_prefix}/test_paper/_page_0_Figure_10.jpeg",
                                           f"{PAPERS_STORAGE_PATH}/_page_0_Figure_10.jpeg")
         assert "_page_0_Figure_10.jpeg" in os.listdir(PAPERS_STORAGE_PATH)
     
