@@ -21,8 +21,8 @@ from ChemCoScientist.tools import chem_tools, nanoparticle_tools, paper_analysis
 from ChemCoScientist.tools import chem_tools, nanoparticle_tools
 from ChemCoScientist.tools.chemist_tools import fetch_BindingDB_data, fetch_chembl_data
 from ChemCoScientist.tools.ml_tools import agents_tools as automl_tools
-from ChemCoScientist.tools.paper_analysis_tools import explore_my_papers
 
+from ChemCoScientist.agents.agents_prompts import paper_agent_prompt
 from definitions import ROOT_DIR
 
 
@@ -289,17 +289,12 @@ def paper_analysis_agent(state: dict, config: dict) -> Command:
     llm: BaseChatModel = config["configurable"]["llm"]
 
     task = state["task"]
-    explore_my_papers_details = """
-    You are a helpful assistant. You can use provided tools. If there is no appropriate tool, or you can't use one,
-     answer yourself.
-     the most useful tool is 'explore_chemistry_database'. Call to get a lot of domain chemistry data. 
-     It is strictly forbidden to call 'explore_my_papers' and 'select_papers' except when user told you to call it directly.     
-     """
+
     # TODO: update this when proper frontend is added
     try:
-        current_prompt = f'{explore_my_papers_details}\n session_id = {st.session_state.session_id}'
+        current_prompt = f'{paper_agent_prompt}\n session_id = {st.session_state.session_id}'
     except:
-        current_prompt = f'{explore_my_papers_details}\nsession_id is not needed in this case, pass None'
+        current_prompt = f'{paper_agent_prompt}\nsession_id is not needed in this case, pass None'
 
     paper_analysis_agent = create_react_agent(
         llm, paper_analysis_tools, state_modifier=current_prompt
