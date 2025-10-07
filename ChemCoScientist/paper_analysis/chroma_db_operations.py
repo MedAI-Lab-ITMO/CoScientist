@@ -382,7 +382,7 @@ class ChromaDBPaperStore:
 
         for filename in os.listdir(image_dir):
             if filename.lower().endswith((".png", ".jpg", ".jpeg")):
-                img_path = os.path.join(image_dir, filename)
+                img_path = (Path(image_dir) / filename).as_posix()
                 if img_path in valid_paths:
                     image_descriptions.append(self._image_to_text(img_path))
                     image_paths.append(url_mapping[img_path])
