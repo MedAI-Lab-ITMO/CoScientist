@@ -647,7 +647,7 @@ class ChromaDBPaperStore:
             None
         """
         for collection in [self.sum_collection, self.txt_collection, self.img_collection]:
-            ids_to_delete = p_store.client.query_chromadb(
+            ids_to_delete = self.client.query_chromadb(
                 collection,
                 "",
                 {"source": {"$in": [f"{paper_name}.pdf"]}},
