@@ -8,13 +8,10 @@ class SciSpacyTokenizer:
 
     def __init__(self, model_name="en_core_sci_sm", lowercase=True, remove_punct=True):
         try:
-            self.nlp = spacy.load(model_name, disable=["parser", "ner", "textcat"])
+            self.nlp = spacy.load(model_name)
         except OSError:
             raise RuntimeError(
                 f"SpaCy model '{model_name}' not found.\n"
-                f"Install it with:\n"
-                f"  pip install scispacy\n"
-                f"  python -m spacy download {model_name}\n"
             )
         self.lowercase = lowercase
         self.remove_punct = remove_punct
