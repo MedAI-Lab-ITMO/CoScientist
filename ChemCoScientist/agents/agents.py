@@ -20,7 +20,7 @@ from ChemCoScientist.agents.agents_prompts import (
 from ChemCoScientist.tools import chem_tools, nanoparticle_tools, paper_analysis_tools, data_tools
 from ChemCoScientist.tools.ml_tools import agents_tools as automl_tools
 
-from ChemCoScientist.agents.agents_prompts import paper_agent_prompt
+from ChemCoScientist.agents.agents_prompts import paper_agent_prompt, coder_prompt
 from definitions import ROOT_DIR
 
 
@@ -66,24 +66,46 @@ def dataset_builder_agent(state: dict, config: dict):
     files = get_all_files(os.path.join(ROOT_DIR, os.environ["DS_STORAGE_PATH"]))
 
     return Command(update={
-        "past_steps": Annotated[set, operator.or_](set([(task, str(response))])),
+        "past_steps": Annotated[set, operator.or_](set([(task, response["messages"][-1].content)])),
         "nodes_calls": Annotated[set, operator.or_](set([
-            ("dataset_builder_agent", (("text", str(response)),))
+            ("dataset_builder_agent", (("text", response["messages"][-1].content),))
         ])),
         "metadata": Annotated[dict, operator.or_]({
             "dataset_builder_agent": files
         }),
     })
 
-    return {"past_steps": set([(task, response["messages"][-1].content)]),
-            "nodes_calls": set([
-             ("dataset_builder_agent", (("text", response["messages"][-1].content),))
-                ]),
-            "metadata": {
-             "dataset_builder_agent": files
-             }
-         }
+def coder_agent(state: dict, config: dict):
 
+    task = state["task"]
+    plan = state["plan"]
+
+    config_cur_agent = config["configurable"]["additional_agents_info"]["coder_agent"]
+
+    model = (
+        LiteLLMModel(config_cur_agent["model_name"], api_base=config_cur_agent["url"], api_key=config_cur_agent["api_key"])
+        if "groq.com" in config_cur_agent["url"]
+        else OpenAIServerModel(api_base=config_cur_agent["url"], model_id=config_cur_agent["model_name"], api_key=config_cur_agent["api_key"])
+    )
+
+    agent = CodeAgent(
+        #tools=coder_tools,
+        tools = [],
+        model=model,
+        additional_authorized_imports=["*"],
+    )
+
+    agent_input = coder_prompt.format(directory=os.path.join(ROOT_DIR, os.environ['DS_STORAGE_PATH']), task=task)
+    response = agent.run(agent_input)
+
+    #TODO manage generated file here
+
+    return Command(update={
+        "past_steps": Annotated[set, operator.or_](set([(task, str(response))])),
+        "nodes_calls": Annotated[set, operator.or_](set([
+            ("ml_dl_agent", (("text", str(response)),))
+        ])),
+    })
 
 
 def ml_dl_agent(state: dict, config: dict) -> Command:
