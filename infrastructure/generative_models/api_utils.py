@@ -230,10 +230,15 @@ def gan_auto_generator(data:GenData=Body()):
     props["Duplicates"] = DYPLICATES
     print(props)
     print(os.getenv('ML_MODEL_URL'))
-    if state(data.case_,'ml')['status'] == 'Trained':
-        ml_props = predict_smiles(valid_mols,data.case_,url=os.getenv('ML_MODEL_URL'))
+    try:
+        if state(data.case_,'ml')['status'] == 'Trained':
+            ml_props = predict_smiles(valid_mols,data.case_,url=os.getenv('ML_MODEL_URL'))
+            for key,value in ml_props.items():
+                props[key]=value
+    except:
+        ml_props = predict_smiles(valid_mols,'Base',url=os.getenv('ML_MODEL_URL'))
         for key,value in ml_props.items():
-            props[key]=value 
+            props[key]=value
     df = pd.DataFrame(data = {'Smiles':valid_mols,**props})
     return df.to_dict('list')
     #return samples
