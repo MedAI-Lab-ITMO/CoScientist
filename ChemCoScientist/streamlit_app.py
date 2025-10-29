@@ -14,7 +14,7 @@ import os
 
 if __name__ == "__main__":
 
-    path = '/app/ChemCoScientist/data_store'
+    path = '/Users/lizzy/Documents/WORK/projects/CoScientist/app/ChemCoScientist/data_store'
     os.makedirs(os.path.join(path, 'datasets'), exist_ok=True)
     os.makedirs(os.path.join(path, 'imgs'), exist_ok=True)
     os.makedirs(os.path.join(path, 'another'), exist_ok=True)

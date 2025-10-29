@@ -348,11 +348,14 @@ def paper_analysis_agent(state: dict, config: dict) -> Command:
     print("Paper agent called")
     print("Current task:")
     print(state["task"])
+    print(state["input"])
+    print()
     print("--------------------------------")
 
     llm: BaseChatModel = config["configurable"]["llm"]
 
     task = state["task"]
+    task = state["input"]
 
     # TODO: update this when proper frontend is added
     try:

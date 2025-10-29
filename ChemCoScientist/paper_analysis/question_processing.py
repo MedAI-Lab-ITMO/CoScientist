@@ -5,6 +5,7 @@ from ChemCoScientist.chemical_utils.openchemie_functions import extract_molecule
 from dotenv import load_dotenv
 from langchain_core.messages import SystemMessage
 from protollm.connectors import create_llm_connector
+from pydantic import BaseModel, Field
 
 from ChemCoScientist.paper_analysis.chroma_db_operations import ChromaDBPaperStore
 from ChemCoScientist.paper_analysis.prompts import sys_prompt, explore_my_papers_prompt
@@ -37,6 +38,15 @@ def query_llm(
     """
     llm = create_llm_connector(model_url, extra_body={"provider": {"only": allowed_providers}})
 
+    class ResScheme(BaseModel):
+        """Joke to tell user."""
+        answer: str = Field(description="The answer to the query")
+        relevant_text: list[int] = Field(description="A list of integers representing the relevant text chunk numbers")
+        relevant_images: list[int] = Field(description="A list of integers representing the relevant image numbers"
+        )
+
+    structured_llm = llm.with_structured_output(schema=ResScheme)
+
     img_context = list(map(convert_to_base64, img_paths))
     messages = [
         SystemMessage(content=sys_prompt),
@@ -48,8 +58,13 @@ def query_llm(
         ),
     ]
 
-    res = llm.invoke(messages)
-    return res.content, res.response_metadata
+    res = structured_llm.invoke(messages)
+    content = {
+        'answer': res.answer,
+        'relevant_text': res.relevant_text,
+        'relevant_images': res.relevant_images
+    }
+    return content
 
 
 def simple_query_llm(model_url: str, question: str, pdfs: list,) -> dict:
@@ -113,18 +128,36 @@ def process_question(question: str, store: ChromaDBPaperStore) -> dict:
                 'image_context' - the set of image paths identified as relevant to the question;
                 'metadata' - Additional metadata returned by the LLM query.
     """
-    txt_data, img_data, papers = store.retrieve_context(question)
+    txt_data, img_data = store.retrieve_context(question)
     txt_context = ""
-    img_paths = set()
+    relevant_txt_context = ""
+    img_paths = []
 
     for idx, chunk in enumerate(txt_data, start=1):
         txt_context += (
-            f"{idx}. Metadata: "
-            + str(chunk[2])
+            f"{idx}. "
             + "\nChunk: "
             + chunk[1].replace("passage: ", "")
             + "\n\n"
         )
+    for chunk_meta in [chunk[2] for chunk in txt_data]:
+        for img in eval(chunk_meta["imgs_in_chunk"]):
+            img_paths.append({
+                'path': img,
+                'title': chunk_meta['title'],
+                'year': chunk_meta['year']
+            })
+    for img_meta in img_data["metadatas"][0]:
+        if img_meta['image_path'] not in [d['path'] for d in img_paths]:
+            img_paths.append({
+                'path': img_meta['image_path'],
+                'title': img_meta['title'],
+                'year': img_meta['year']
+            })
+    img_paths_list = [d['path'] for d in img_paths]
+
+    ans = query_llm(VISION_LLM_URL, question, txt_context, list(img_paths_list))
+
     for chunk_meta in [chunk[2] for chunk in txt_data]:
         img_paths.update(eval(chunk_meta["imgs_in_chunk"]))
     for img in img_data["metadatas"][0]:
@@ -135,14 +168,27 @@ def process_question(question: str, store: ChromaDBPaperStore) -> dict:
         }
     txt_context += f"Molecules and reactions data: {molecules_reactions_metadata}\n\n"
 
-    ans, metadata = query_llm(VISION_LLM_URL, question, txt_context, list(img_paths))
+    relevant_txt_data = [txt_data[num - 1] for num in ans['relevant_text']]
+    relevant_img_context = [img_paths[num - 1] for num in ans['relevant_images']]
+
+    for idx, chunk in enumerate(relevant_txt_data, start=1):
+        keys_to_remove = ['type', 'imgs_in_chunk']
+        metadata = {k: v for k, v in chunk[2].items() if k not in keys_to_remove}
+        relevant_txt_context += (
+                f"{idx}. Metadata: "
+                + str(metadata)
+                + "\nChunk: "
+                + chunk[1].replace("passage: ", "")
+                + "\n\n"
+        )
 
     return {
-        "answer": ans,
+        # "answer": ans,
+        "answer": ans['answer'],
         "metadata": {
-            "text_context": txt_context,
-            "image_context": img_paths,
-            "metadata": metadata,
+            "text_context": relevant_txt_context,
+            "image_context": relevant_img_context,
+            # "metadata": metadata,
         },
     }
 
@@ -188,10 +234,20 @@ if __name__ == "__main__":
     #######################################################
 
     paper_store = ChromaDBPaperStore()
-    # question = 'What is the title of an article?'
+    question = 'What is the title of an article?'
     # question = 'What components are involved in the synthesis of BASHY dyes, and what are the uses of these dyes?'
-    # question = f'What IC50 values do weakly active and highly active Bruton\'s tyrosine kinase inhibitors have?'
-    question = 'How does the synthesis of Glionitrin A/B happen?'
+    question = 'What IC50 values do weakly active and highly active Bruton\'s tyrosine kinase inhibitors have?'
+    # question = 'How does the synthesis of Glionitrin A/B happen?'
+    question = 'How does the calculated spin-wave spectrum of Cu₂(OH)₃X vary as the halide (X) is changed from Cl to Br to I, particularly concerning the bandwidth in the interchain direction?'
+    # question = 'Describe the most stable adsorption geometry for a CO molecule on the B₂N nanosheet, including the specific atoms involved in bonding and the resulting structural deformation of the sheet.'  # no answer at all - no data found
+    #question = 'According to thermodynamic analysis, how does increasing the operating pressure of an electrochemical reactor from 1 atm to 250 atm affect both the energy required for gas compression and the electrochemical energy of the redox reaction?'  # image is wrong
+    #question = 'What is the stability of the PEI/ABSA/PSS sensor coating over a one-month storage period in PBS buffer, and what is the likely cause of signal degradation?' # no answe at all
+    #question = 'Compare the limit of detection (LOD) and linear range for S. aureus using the impedimetric method versus the voltammetric method with a secondary antibody.'  # no picture
+    # question = 'How has affinity purification combined with mass spectrometry (AP-MS) advanced the identification of protein complexes, and what are some limitations faced by this approach?'  # wrong picture
+    # question = 'What are the key technological advances in protein-protein interaction (PPI) studies that have enabled genome-wide scale mapping, and how do these methods complement each other?'  # wrong pictures
+    # question = 'When comparing POE and SNE strategies, how does the diversity of generated EcNAGK variants differ in terms of mutation number and location along the protein sequence?'  #good answer but wrong pictures
+    question = 'In motor designs where a thermal helix inversion (THI) is used, what is the role of the THI step in producing unidirectional rotation for overcrowded-alkene motors, and how does steric design of the rotor/stator enforce directionality?'
+
 
     # res = simple_query_llm(VISION_LLM_URL, question, [paper])
     result = process_question(question, paper_store)

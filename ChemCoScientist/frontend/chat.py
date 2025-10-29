@@ -426,12 +426,12 @@ def display_paper_analysis_metadata(message, message_index):
             key=images_key
         )
 
-    with col3:
-        show_meta = st.checkbox(
-            "ℹ️ Metadata",
-            value=st.session_state[meta_key],
-            key=meta_key
-        )
+    # with col3:
+    #     show_meta = st.checkbox(
+    #         "ℹ️ Metadata",
+    #         value=st.session_state[meta_key],
+    #         key=meta_key
+    #     )
 
     # Display text context if selected
     if show_text:
@@ -444,7 +444,7 @@ def display_paper_analysis_metadata(message, message_index):
             if images_context:
                 for i, image_item in enumerate(images_context):
                     img_key = f"img_checkbox_{message_index}_{i}"
-                    bucket_name, s3_key = urlparse(image_item).path.split('/', 2)[1:]
+                    bucket_name, s3_key = urlparse(image_item['path']).path.split('/', 2)[1:]
 
                     # Initialize image checkbox state if not present
                     if img_key not in st.session_state:
@@ -459,28 +459,30 @@ def display_paper_analysis_metadata(message, message_index):
                     # Display image if selected
                     if show_img:
                         try:
-
                             pil_image = Image.open(BytesIO(s3_service.get_image_bytes_from_s3(s3_key, bucket_name)))
                             st.image(pil_image, caption=s3_key, use_container_width=True)
+
+                            description_text = "\n\n".join(f"{k}: {v}" for k, v in image_item.items() if k not in ['path'])
+                            st.markdown(description_text)
                         except Exception as e:
                             st.error(f"Could not display image: {image_item}. Error: {str(e)}")
             else:
                 st.write("No image context available")
 
     # Display metadata if selected
-    if show_meta:
-        with st.expander("ℹ️ Metadata", expanded=True):
-            if metadata:
-                for key, value in metadata.items():
-                    st.write(f"**{key}:** {value}")
-            else:
-                st.write("No metadata available")
+    # if show_meta:
+    #     with st.expander("ℹ️ Metadata", expanded=True):
+    #         if metadata:
+    #             for key, value in metadata.items():
+    #                 st.write(f"**{key}:** {value}")
+    #         else:
+    #             st.write("No metadata available")
 
 
 
 def async_to_sync(async_gen):
     queue = Queue()
-    
+
     async def produce():
         try:
             async for item in async_gen:

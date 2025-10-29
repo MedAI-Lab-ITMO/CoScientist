@@ -8,7 +8,15 @@ sys_prompt = (
     " information from context, which is relevant to user's question.\n4. If you do not know"
     " how to answer the questions, say so.\n5. If you are additionally given images, you can"
     " use the information from them as CONTEXT to answer.\n 6. Use valid IUPAC or SMILES "
-    " notation if necessary to answer the question. 7. Do not refer to figures/tables from the context directly."
+    " notation if necessary to answer the question. 7. Do not refer to figures/tables from the context directly.\n"
+    "Also, identify the parts of the provided data that contain the necessary information to answer the questions. "
+    "The text chunks are numbered sequentially (1, 2, 3, ...), and the images are numbered according to their "
+    "order (1, 2, 3, ...). Return only the text chunks and images that contain information essential to answering the "
+    "question — that is, parts that directly contribute facts, data, or explanations needed for a complete "
+    "and accurate response."
+    # "answer: answer to the user query"
+    # "relevant_text: a list of integers representing the relevant text chunk numbers"
+    # "relevant_images: a list of integers representing the relevant image numbers"
 )
 
 sys_prompt_LLM = (
