@@ -15,7 +15,8 @@ from urllib.parse import urlparse
 from definitions import ROOT_DIR
 from ChemCoScientist.frontend.utils import get_user_data_dir, get_user_session_id, save_all_files
 from ChemCoScientist.tools.utils import convert_to_base64, convert_to_html
-from ChemCoScientist.frontend.streamlit_endpoints import explore_my_papers
+# from ChemCoScientist.frontend.streamlit_endpoints import explore_my_papers
+from ChemCoScientist.tools.paper_analysis_tools import explore_my_papers
 from ChemCoScientist.frontend.utils import clean_folder
 from CoScientist.paper_parser.s3_connection import s3_service
 
@@ -118,7 +119,7 @@ def message_handler(user_query: str, placeholder: st.delta_generator.DeltaGenera
     Returns:
         None
     """
-    user_query = st.session_state.chat_input
+    user_query = st.session_state.chat_input + " Explore the chemical library to answer this question."
 
     try:
         images = st.session_state.images_b64
@@ -161,8 +162,11 @@ def message_handler(user_query: str, placeholder: st.delta_generator.DeltaGenera
 
                 if st.session_state.explore_mode:
                     print('In explore_mode section')
+                    print(st.session_state.session_id)
+                    print('end')
                     # Use explore_my_papers function instead of general AI assistant
-                    result = explore_my_papers(inputs.get('input', ''))
+                    # result = explore_my_papers(inputs.get('input', ''), st.session_state.session_id)
+                    result = explore_my_papers.invoke({'task': inputs.get('input', ''), 'session_id': st.session_state.session_id})
 
                     # st.markdown(result["answer"])
 
@@ -436,7 +440,10 @@ def display_paper_analysis_metadata(message, message_index):
     # Display text context if selected
     if show_text:
         with st.expander("📄 Text Context", expanded=True):
-            st.text_area("Text Context:", value=text_context, height=200, disabled=True)
+            for text in text_context:
+                description_text = "Metadata:\n\n" + "\n\n".join(f"{k}: {v}" for k, v in text.items() if k not in ['chunk'])
+                st.markdown(description_text)
+                st.text_area("Text Context:", value=text['chunk'], height=400, disabled=True)
 
     # Display image context if selected
     if show_images:
@@ -460,7 +467,7 @@ def display_paper_analysis_metadata(message, message_index):
                     if show_img:
                         try:
                             pil_image = Image.open(BytesIO(s3_service.get_image_bytes_from_s3(s3_key, bucket_name)))
-                            st.image(pil_image, caption=s3_key, use_container_width=True)
+                            st.image(pil_image, caption=s3_key, width=300)
 
                             description_text = "\n\n".join(f"{k}: {v}" for k, v in image_item.items() if k not in ['path'])
                             st.markdown(description_text)

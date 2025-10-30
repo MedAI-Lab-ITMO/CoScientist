@@ -9,9 +9,11 @@ from langchain_core.tools import tool
 from protollm.connectors import create_llm_connector
 from pathlib import Path
 
+from ChemCoScientist.chemical_utils.openchemie_functions import extract_reactions_from_pdf, extract_molecules_from_pdf
 from ChemCoScientist.paper_analysis.chroma_db_operations import ChromaDBPaperStore
 from ChemCoScientist.paper_analysis.prompts import paraphrase_prompt
 from ChemCoScientist.paper_analysis.question_processing import process_question, simple_query_llm
+from ChemCoScientist.frontend.memory import SELECTED_PAPERS, MOLECULE_DATA
 from ChemCoScientist.paper_analysis.dataset_collection import extract_mols_prop_dataset
 from ChemCoScientist.frontend.memory import SELECTED_PAPERS
 from definitions import CONFIG_PATH
@@ -81,7 +83,25 @@ def explore_my_papers(task: str, session_id: str = None) -> dict:
                 return {'answer': 'No papers provided for search.'}
             papers = SELECTED_PAPERS[session_id]
 
-        return simple_query_llm(VISION_LLM_URL, task, papers)
+        if MOLECULE_DATA.get(session_id, []):
+            print(f'Reading pdf image description from memory')
+            img_descriptions = MOLECULE_DATA.get(session_id)
+        else:
+            print(f'Requesting pdf image description from server...')
+            img_descriptions = 'This is additional information about the reactions and molecules that are presented' \
+                               'on the images in the paper. They are passed in the same order as papers themselves.' \
+                               'Use them to answer the question.\n\n'
+            for paper in papers:
+                with open(paper, 'rb') as file:
+                    paper_bytes = file.read()
+                    img_descriptions += f'Reactions: {str(extract_reactions_from_pdf(paper_bytes))}\n'
+                    img_descriptions += f'Molecules: {str(extract_molecules_from_pdf(paper_bytes))}\n'
+                    img_descriptions += '\n\n'
+            MOLECULE_DATA[session_id] = img_descriptions
+
+        print(f'pdf img description: {img_descriptions}')
+
+        return simple_query_llm(VISION_LLM_URL, task, papers, img_descriptions)
     except Exception as e:
         logger.error(f'explore_my_papers ERROR: {e}')
         return {'answer': 'Could not extract any data from uploaded papers.'}
@@ -136,7 +156,7 @@ def select_papers(query: str, papers_num: int = 15, final_papers_num: int = 3) -
 def create_dataset_from_papers(task: str, session_id: str = None) -> pd.DataFrame:
     """
     Creates a structured molecular property dataset from a collection of research papers (PDFs).
-    
+
     Args:
         task (str): A natural-language description of the property or dataset to extract.
             Examples:

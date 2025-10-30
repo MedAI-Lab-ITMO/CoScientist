@@ -67,7 +67,7 @@ def query_llm(
     return content
 
 
-def simple_query_llm(model_url: str, question: str, pdfs: list,) -> dict:
+def simple_query_llm(model_url: str, question: str, pdfs: list, img_descriptions: str) -> dict:
     """
     Queries a language model with a question and a list of PDF documents to provide context for answering the question.
 
@@ -100,7 +100,7 @@ def simple_query_llm(model_url: str, question: str, pdfs: list,) -> dict:
         }
         content.append(paper_part)
 
-    text_part = {"type": "text", "text": f"USER QUESTION: {question}"}
+    text_part = {"type": "text", "text": f"USER QUESTION: {question}\n\n{img_descriptions}"}
     content.append(text_part)
     from langchain_core.messages import HumanMessage
 
@@ -130,7 +130,7 @@ def process_question(question: str, store: ChromaDBPaperStore) -> dict:
     """
     txt_data, img_data = store.retrieve_context(question)
     txt_context = ""
-    relevant_txt_context = ""
+    relevant_txt_context = []
     img_paths = []
 
     for idx, chunk in enumerate(txt_data, start=1):
@@ -140,47 +140,61 @@ def process_question(question: str, store: ChromaDBPaperStore) -> dict:
             + chunk[1].replace("passage: ", "")
             + "\n\n"
         )
-    for chunk_meta in [chunk[2] for chunk in txt_data]:
-        for img in eval(chunk_meta["imgs_in_chunk"]):
-            img_paths.append({
-                'path': img,
-                'title': chunk_meta['title'],
-                'year': chunk_meta['year']
-            })
-    for img_meta in img_data["metadatas"][0]:
-        if img_meta['image_path'] not in [d['path'] for d in img_paths]:
-            img_paths.append({
-                'path': img_meta['image_path'],
-                'title': img_meta['title'],
-                'year': img_meta['year']
-            })
-    img_paths_list = [d['path'] for d in img_paths]
-
-    ans = query_llm(VISION_LLM_URL, question, txt_context, list(img_paths_list))
-
-    for chunk_meta in [chunk[2] for chunk in txt_data]:
-        img_paths.update(eval(chunk_meta["imgs_in_chunk"]))
     for img in img_data["metadatas"][0]:
-        img_paths.add(img["image_path"])
+        # img_paths.add(img["image_path"])
         molecules_reactions_metadata = {
             "molecules": img["molecules"],
             "reactions": img["reactions"]
         }
     txt_context += f"Molecules and reactions data: {molecules_reactions_metadata}\n\n"
 
+    for chunk_meta in [chunk[2] for chunk in txt_data]:
+        for img in eval(chunk_meta["imgs_in_chunk"]):
+            img_paths.append({
+                'path': img,
+                'Source': chunk_meta['source'],
+                'Paper': chunk_meta['title'],
+                'Year': chunk_meta['year'],
+                # 'Molecules': chunk_meta['molecules'],
+                # 'Reactions': chunk_meta['reactions']
+            })
+    for img_meta in img_data["metadatas"][0]:
+        if img_meta['image_path'] not in [d['path'] for d in img_paths]:
+            img_paths.append({
+                'path': img_meta['image_path'],
+                'source': img_meta['source'],
+                'Paper': img_meta['title'],
+                'Year': img_meta['year'],
+                'Molecules': img_meta['molecules'],
+                'Reactions': img_meta['reactions']
+            })
+    img_paths_list = [d['path'] for d in img_paths]
+
+    ans = query_llm(VISION_LLM_URL, question, txt_context, list(img_paths_list))
+
+
     relevant_txt_data = [txt_data[num - 1] for num in ans['relevant_text']]
     relevant_img_context = [img_paths[num - 1] for num in ans['relevant_images']]
 
     for idx, chunk in enumerate(relevant_txt_data, start=1):
-        keys_to_remove = ['type', 'imgs_in_chunk']
-        metadata = {k: v for k, v in chunk[2].items() if k not in keys_to_remove}
-        relevant_txt_context += (
-                f"{idx}. Metadata: "
-                + str(metadata)
-                + "\nChunk: "
-                + chunk[1].replace("passage: ", "")
-                + "\n\n"
-        )
+        # keys_to_remove = ['type', 'imgs_in_chunk']
+        # metadata = {k: v for k, v in chunk[2].items() if k not in keys_to_remove}
+        relevant_txt_context.append({
+            'chunk': f"Chunk {idx}: \n"
+                     + chunk[1].replace("passage: ", "")
+                     + "\n\n",
+            'Source': chunk[2]['source'],
+            'Paper': chunk[2]['title'],
+            # 'Header': chunk[2].get('Header 1', ''),
+            'Year': chunk[2]['year'],
+        })
+        # relevant_txt_context += (
+        #         f"{idx}. Metadata: "
+        #         + str(metadata)
+        #         + "\nChunk: "
+        #         + chunk[1].replace("passage: ", "")
+        #         + "\n\n"
+        # )
 
     return {
         # "answer": ans,
