@@ -90,6 +90,41 @@ If the context is unrelated, return the user input unchanged.
 """)
 
 
+RESOLVE_PROMPT = ChatPromptTemplate.from_template("""
+You are an intelligent assistant working within a multi-agent system.
+
+Your task is to **enrich the user's input** using relevant factual information 
+available in the system’s memory. You have access to semantically related context retrieved from long-term memory.
+
+Use this information to make the user’s message **more explicit, grounded, and complete**, 
+so that downstream agents can execute it without ambiguity.
+
+---
+
+### CONTEXT (retrieved facts)
+{context}
+
+### USER INPUT
+{query}
+
+---
+
+### INSTRUCTIONS
+- Do NOT invent facts not supported by the history or context.
+- Integrate only factual or inferable information that is **clearly relevant** to the user input.
+- If the context does not appear directly relevant, **ignore it entirely** and use only the user input.
+- Preserve the original user intent and tone.
+- Rephrase only as much as needed to make the message self-contained and clear.
+- It is very important to follow these instructions otherwise you will lose a lot of money.
+
+---
+
+### OUTPUT
+Produce a single, enriched version of the user input, **only if** the context or history is relevant.
+If the context is unrelated, return the user input unchanged.
+""")
+
+
 embedding_host = os.environ.get('EMBEDDING_HOST')
 embedding_port = os.environ.get('EMBEDDING_PORT')
 embedding_endpoint = "/embed"
