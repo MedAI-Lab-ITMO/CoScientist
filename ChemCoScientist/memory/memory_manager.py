@@ -53,6 +53,41 @@ so that downstream agents can execute it without ambiguity.
 Produce a single, enriched version of the user input, with incorporated factual context.
 """)
 
+RESOLVE_PROMPT = ChatPromptTemplate.from_template("""
+You are an intelligent assistant working within a multi-agent system.
+
+Your task is to **enrich the user's input** using relevant factual information 
+available in the system’s memory. You have access to semantically related context retrieved from long-term memory.
+
+Use this information to make the user’s message **more explicit, grounded, and complete**, 
+so that downstream agents can execute it without ambiguity.
+
+---
+
+### CONTEXT (retrieved facts)
+{context}
+
+### USER INPUT
+{query}
+
+---
+
+### INSTRUCTIONS
+- Do NOT invent facts not supported by the history or context.
+- Integrate only factual or inferable information that is **clearly relevant** to the user input.
+- If the context does not appear directly relevant, **ignore it entirely** and use only the user input.
+- Preserve the original user intent and tone.
+- Rephrase only as much as needed to make the message self-contained and clear.
+- It is very important to follow these instructions otherwise you will lose a lot of money.
+
+---
+
+### OUTPUT
+Produce a single, enriched version of the user input, **only if** the context or history is relevant.
+If the context is unrelated, return the user input unchanged.
+""")
+
+
 embedding_host = os.environ.get('EMBEDDING_HOST')
 embedding_port = os.environ.get('EMBEDDING_PORT')
 embedding_endpoint = "/embed"
@@ -128,10 +163,15 @@ class HybridMemoryManager:
         """Return short recent dialogue context"""
         return "\n".join([f"{m['role']}: {m['content']}" for m in self.short_memory])
     
-    def retrieve_semantic_context(self, query: str, k: int =3) -> List[str]:
+    def retrieve_semantic_context(self, query: str, k: int = 3, similarity_threshold: float = 0.4) -> List[str]:
         """Semantic retrieval from FAISS store"""
-        results = self.vectorstore.similarity_search(query, k=k)
-        return [(r.metadata['role'], r.page_content) for r in results]
+        # results = self.vectorstore.similarity_search(query, k=k)
+        
+        # return [(r.metadata['role'], r.page_content) for r in results]
+
+        results = self.vectorstore.similarity_search_with_score(query, k=k)
+        filtered_results = [doc for doc, score in results if score >= similarity_threshold]
+        return [(r.metadata['role'], r.page_content) for r in filtered_results]
 
     def resolve_message(self, user_input: str, k: int = 3, similarity_threshold: float = 0.4) -> str:
         """
@@ -140,7 +180,7 @@ class HybridMemoryManager:
         2. If relevant context found, use LLM to rewrite message.
         3. Otherwise, return message unchanged.
         """
-        retrieved = self.retrieve_semantic_context(user_input, k=k)
+        retrieved = self.retrieve_semantic_context(user_input, k=k, similarity_threshold=similarity_threshold)
         history_text = self.get_recent_history()
 
         if not retrieved or not history_text:
