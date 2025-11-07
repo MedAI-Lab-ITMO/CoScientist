@@ -55,7 +55,7 @@ def mols_to_csv(results):
             ref = ";".join(refs[i]) if refs[i] != [] else "Unknown ID"
             all_refs.append(ref)
             all_smiles.append(smiles[i])
-    print(all_refs)
+
     df["id"] = all_refs
     df["smiles"] = all_smiles
 
