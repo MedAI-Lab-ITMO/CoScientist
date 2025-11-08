@@ -92,11 +92,11 @@ def explore_my_papers(task: str, session_id: str = None) -> dict:
                                'on the images in the paper. They are passed in the same order as papers themselves.' \
                                'Use them to answer the question.\n\n'
             for paper in papers:
-                with open(paper, 'rb') as file:
-                    paper_bytes = file.read()
+                with open(paper, 'rb') as paper_bytes:
                     img_descriptions += f'Reactions: {str(extract_reactions_from_pdf(paper_bytes))}\n'
+                with open(paper, 'rb') as paper_bytes:
                     img_descriptions += f'Molecules: {str(extract_molecules_from_pdf(paper_bytes))}\n'
-                    img_descriptions += '\n\n'
+                img_descriptions += '\n\n'
             MOLECULE_DATA[session_id] = img_descriptions
 
         print(f'pdf img description: {img_descriptions}')

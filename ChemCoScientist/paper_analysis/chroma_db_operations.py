@@ -511,6 +511,19 @@ class ChromaDBPaperStore:
             image['year'] = relevant_papers[image['source']]['year']
 
         return text_context, image_context
+
+
+    # def get_molecule_data_l(self, file_path: str) -> tuple(str, str): # finish!!!!
+    #     image_data = self.client.query_chromadb(
+    #         self.img_collection,
+    #         [],
+    #         {"path": file_path}
+    #     )
+    #     for img in image_data["metadatas"][0]:
+    #         if img.get("molecules") is None or img.get("reactions") is None:
+    #             image_bytes = load_image_as_binary(img["image_path"])
+    #             img["molecules"] = str(extract_molecules_from_figure(image_bytes))
+    #             img["reactions"] = str(extract_reactions_from_figure(image_bytes))
     
     def search_with_reranker(
             self, query: str, initial_results: dict, top_k: int = 1

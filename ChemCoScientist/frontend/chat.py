@@ -12,6 +12,9 @@ from langgraph.errors import GraphRecursionError
 from PIL import Image
 from urllib.parse import urlparse
 
+from streamlit_image_zoom import image_zoom
+from PIL import Image
+
 from definitions import ROOT_DIR
 from ChemCoScientist.frontend.utils import get_user_data_dir, get_user_session_id, save_all_files
 from ChemCoScientist.tools.utils import convert_to_base64, convert_to_html
@@ -39,13 +42,13 @@ logger.addHandler(file_handler)
 def chat():
     """
     Displays the chat interface and handles user interactions for querying scientific papers.
-    
+
     This method manages the display of chat messages, handles user input, and interacts with other functions to process and display responses.
     It allows users to interact with the assistant, optionally choosing to analyze uploaded papers directly instead of relying on a pre-existing database.  The interface also supports displaying intermediate reasoning steps, AutoML results, and visualizations of generated images and molecules.
-    
+
     Args:
         None
-    
+
     Returns:
         None
     """
@@ -107,15 +110,15 @@ def chat():
 def message_handler(user_query: str, placeholder: st.delta_generator.DeltaGenerator):
     """
     Processes a user's message through the backend and displays the response.
-    
-    This method handles the complete flow of a user interaction: it adds the user's message 
-    to the chat history, presents it in the interface, sends it to the backend for processing, 
+
+    This method handles the complete flow of a user interaction: it adds the user's message
+    to the chat history, presents it in the interface, sends it to the backend for processing,
     manages potential errors, and displays the backend's reply. This includes intermediate reasoning steps,
-    generated visualizations (like molecule structures or images), and handles file uploads. 
-    
+    generated visualizations (like molecule structures or images), and handles file uploads.
+
     Args:
         None
-    
+
     Returns:
         None
     """
@@ -134,7 +137,7 @@ def message_handler(user_query: str, placeholder: st.delta_generator.DeltaGenera
         if st.session_state.uploaded_files:
             save_all_files(st.session_state.user_data_dir)
             config["configurable"]["user_data_dir"] = st.session_state.user_data_dir
-            
+
         inputs = {"input": user_query}
         # add path to users image from gui
         if st.session_state.images:
@@ -161,9 +164,6 @@ def message_handler(user_query: str, placeholder: st.delta_generator.DeltaGenera
                     steps_container = st.container()
 
                 if st.session_state.explore_mode:
-                    print('In explore_mode section')
-                    print(st.session_state.session_id)
-                    print('end')
                     # Use explore_my_papers function instead of general AI assistant
                     # result = explore_my_papers(inputs.get('input', ''), st.session_state.session_id)
                     result = explore_my_papers.invoke({'task': inputs.get('input', ''), 'session_id': st.session_state.session_id})
@@ -171,7 +171,7 @@ def message_handler(user_query: str, placeholder: st.delta_generator.DeltaGenera
                     # st.markdown(result["answer"])
 
                     st.session_state.messages[-1]["content"] = (result["answer"])
-                
+
                 else:
                     print('In main graph section')
                     # result = st.session_state.backend.invoke(input=inputs, config=config)
@@ -384,11 +384,11 @@ def message_handler(user_query: str, placeholder: st.delta_generator.DeltaGenera
 def display_paper_analysis_metadata(message, message_index):
     """
     Display analysis details extracted from scientific papers, allowing users to selectively view text, images, and metadata.
-    
+
     Args:
         message (dict): A dictionary containing the paper analysis data.  It is expected to have a "paper_analysis" key.
         message_index (int): A unique index for the message, used to create unique keys for the checkboxes to maintain state.
-    
+
     Returns:
         None: This function displays content using Streamlit and does not return a value.  It updates the Streamlit session state with the checkbox values.
     """
@@ -441,9 +441,18 @@ def display_paper_analysis_metadata(message, message_index):
     if show_text:
         with st.expander("📄 Text Context", expanded=True):
             for text in text_context:
-                description_text = "Metadata:\n\n" + "\n\n".join(f"{k}: {v}" for k, v in text.items() if k not in ['chunk'])
-                st.markdown(description_text)
-                st.text_area("Text Context:", value=text['chunk'], height=400, disabled=True)
+                st.text_area(f'Text Context:', value=text['chunk'], height=350, disabled=True)
+                description_text = "\n\n".join(f"{k}: {v}" for k, v in text.items() if k not in ['chunk'])
+                description_text = f'{text["Paper"]}, {text["Year"]}'
+                # st.markdown(description_text)
+                # st.caption(f"Sou: {description_text}")
+                st.markdown(f"""<span style="color:black;"><b>Source: </b> {description_text}</span>""",
+                            unsafe_allow_html=True)
+
+                # st.text_area("Source: ", value=description_text, height=150, disabled=True)
+                # st.markdown(f'<span style="color:black;"><b>Metadata:</b></span>', unsafe_allow_html=True)
+                # st.text_area(f'<span style="color:black;"><b>Source:</b></span>', value=description_text, height=150, disabled=True)
+                # st.divider()
 
     # Display image context if selected
     if show_images:
@@ -454,25 +463,31 @@ def display_paper_analysis_metadata(message, message_index):
                     bucket_name, s3_key = urlparse(image_item['path']).path.split('/', 2)[1:]
 
                     # Initialize image checkbox state if not present
-                    if img_key not in st.session_state:
-                        st.session_state[img_key] = False
+                    # if img_key not in st.session_state:
+                    #     st.session_state[img_key] = False
 
-                    show_img = st.checkbox(
-                        f'{bucket_name}/{s3_key}',
-                        value=st.session_state[img_key],
-                        key=img_key
-                    )
+                    # show_img = st.checkbox(
+                    #     f'{bucket_name}/{s3_key}',
+                    #     value=st.session_state[img_key],
+                    #     key=img_key
+                    # )
 
                     # Display image if selected
-                    if show_img:
-                        try:
-                            pil_image = Image.open(BytesIO(s3_service.get_image_bytes_from_s3(s3_key, bucket_name)))
-                            st.image(pil_image, caption=s3_key, width=300)
+                    try:
+                        pil_image = Image.open(BytesIO(s3_service.get_image_bytes_from_s3(s3_key, bucket_name)))
+                        st.image(pil_image, caption='', width=800)
+                        # image_zoom(pil_image, size=800, zoom_factor=2.0)
 
-                            description_text = "\n\n".join(f"{k}: {v}" for k, v in image_item.items() if k not in ['path'])
-                            st.markdown(description_text)
-                        except Exception as e:
-                            st.error(f"Could not display image: {image_item}. Error: {str(e)}")
+                        # description_text = "\n\n".join(f"{k}: {v}" for k, v in image_item.items() if k not in ['path'])
+                        # st.markdown(description_text)
+
+                        description_text = f'{image_item["Paper"]}, {image_item["Year"]}'
+                        # st.markdown(description_text)
+                        # st.caption(f"Sou: {description_text}")
+                        st.markdown(f"""<span style="color:black;"><b>Source: </b> {description_text}</span>""",
+                                    unsafe_allow_html=True)
+                    except Exception as e:
+                        st.error(f"Could not display image: {image_item}. Error: {str(e)}")
             else:
                 st.write("No image context available")
 

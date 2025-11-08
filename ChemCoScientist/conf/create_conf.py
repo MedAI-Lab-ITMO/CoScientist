@@ -304,7 +304,9 @@ conf = {
                     such as *Summary*, *Results*, *Findings*, *Conclusion*, etc.  
                     - Always ensure your response **directly answers the user’s query**.  
                     - Respond in **markdown** format.
-                    - Double-check that your answer is **complete, accurate, and self-contained**.""",
+                    - Double-check that your answer is **complete, accurate, and self-contained**.
+                    - In your response, include every piece of information provided by other agents. 
+                      Ensure the answer is fully comprehensive and no data is overlooked or omitted.""",
 
                 "additional_hints": """                
                     Never include full file paths — only file names.  

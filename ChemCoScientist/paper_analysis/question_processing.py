@@ -39,10 +39,12 @@ def query_llm(
     llm = create_llm_connector(model_url, extra_body={"provider": {"only": allowed_providers}})
 
     class ResScheme(BaseModel):
-        """Joke to tell user."""
         answer: str = Field(description="The answer to the query")
-        relevant_text: list[int] = Field(description="A list of integers representing the relevant text chunk numbers")
-        relevant_images: list[int] = Field(description="A list of integers representing the relevant image numbers"
+        explanation: str = Field(description="The logical reasoning for the answer")
+        chunk_explanation: str = Field(description="The explanation why the chosen chunk/chunks are relevant to the answer")
+        img_explanation: str = Field(description="The explanation why the chosen image/images are relevant to the answer")
+        relevant_text: list[int] = Field(description="A list of integers representing the relevant text chunk numbers, numeration of chunks starts with 1")
+        relevant_images: list[int] = Field(description="A list of integers representing the relevant image numbers, numeration of images starts with 1"
         )
 
     structured_llm = llm.with_structured_output(schema=ResScheme)
@@ -61,6 +63,9 @@ def query_llm(
     res = structured_llm.invoke(messages)
     content = {
         'answer': res.answer,
+        'explanation': res.explanation,
+        'chunk_explanation': res.chunk_explanation,
+        'img_explanation': res.img_explanation,
         'relevant_text': res.relevant_text,
         'relevant_images': res.relevant_images
     }
@@ -199,6 +204,9 @@ def process_question(question: str, store: ChromaDBPaperStore) -> dict:
     return {
         # "answer": ans,
         "answer": ans['answer'],
+        "explanation": ans['explanation'],
+        "chunk_explanation": ans.get('chunk_explanation', ''),
+        "img_explanation": ans.get('img_explanation', ''),
         "metadata": {
             "text_context": relevant_txt_context,
             "image_context": relevant_img_context,
@@ -260,9 +268,13 @@ if __name__ == "__main__":
     # question = 'How has affinity purification combined with mass spectrometry (AP-MS) advanced the identification of protein complexes, and what are some limitations faced by this approach?'  # wrong picture
     # question = 'What are the key technological advances in protein-protein interaction (PPI) studies that have enabled genome-wide scale mapping, and how do these methods complement each other?'  # wrong pictures
     # question = 'When comparing POE and SNE strategies, how does the diversity of generated EcNAGK variants differ in terms of mutation number and location along the protein sequence?'  #good answer but wrong pictures
-    question = 'In motor designs where a thermal helix inversion (THI) is used, what is the role of the THI step in producing unidirectional rotation for overcrowded-alkene motors, and how does steric design of the rotor/stator enforce directionality?'
-
-
+    # question = 'In motor designs where a thermal helix inversion (THI) is used, what is the role of the THI step in producing unidirectional rotation for overcrowded-alkene motors, and how does steric design of the rotor/stator enforce directionality?'
+    question = 'Based on time-resolved ¹H and ²³Na ssNMR spectra, how does the rate of water and sodium ion adsorption into AO-PIM-1 membranes change with increasing amidoxime modification?'
+    question = 'What is the typical pore size range for PIM-EA-TB and AO-PIM-1 as derived from CO₂ adsorption isotherms using DFT calculations?'
+    question = 'How does the crystallisation rate of LiCl on the surface of the solar evaporator change as the mass ratio of MgCl₂ to LiCl in the stock solution increases from 1:1 to 10:1?'
+    question = 'What is the effect of increasing the total salt concentration (10 to 80 g/L) in the stock solution on the water evaporation rate and crystallisation rate of LiCl in a solar evaporation system?'
+    question = 'Compare the ionic permeability of GO-PA-based membranes for K+, Na+, Cs+ and Li+ ions as a function of pH. Which ion shows an abnormally high permeability and how does it depend on pH?'
+    # question = 'How does the crystallisation rate of LiCl on the surface of the solar evaporator change as the mass ratio of MgCl₂ to LiCl in the stock solution increases?'
     # res = simple_query_llm(VISION_LLM_URL, question, [paper])
     result = process_question(question, paper_store)
     from pprint import pprint
