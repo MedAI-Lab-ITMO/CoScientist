@@ -123,7 +123,8 @@ class CustomEmbeddings(Embeddings):
         except Exception as e:
             #logger.error(f"Embedding service error: {str(e)}")
             print(f"Embedding service error: {str(e)}")
-            raise
+            return [] #default value
+            
     
     def embed_documents(self, texts: List[str]) -> List[np.ndarray]:
         """Embed list of texts."""
@@ -141,15 +142,25 @@ class HybridMemoryManager:
 
         self.short_memory = deque(maxlen=short_memory_size)
         self.embedding = embeddings
+        
+        test_embedding = self.embedding.get_embeddings(["hello world"])
 
-        index = faiss.IndexFlatL2(len(self.embedding.get_embeddings(["hello world"])[0]))
-        self.vectorstore = FAISS(embedding_function=self.embedding, index=index, docstore=InMemoryDocstore(), index_to_docstore_id={})
+        if test_embedding:
+            embed_len = len(test_embedding[0])
+            index = faiss.IndexFlatL2(embed_len)
+            self.vectorstore = FAISS(embedding_function=self.embedding, index=index, docstore=InMemoryDocstore(), index_to_docstore_id={}) 
+        else:
+            print('No embedder is found, memory mechanism turned off')
+            self.vectorstore = None
 
         self.llm = llm
         self.logger = logger
     
     def add_message(self, role: str, content: str):
         """Store message in short memory and vectorstore"""
+
+        if self.vectorstore is None:
+            return
     
         self.short_memory.append({"role": role, "content": content})
         # Add to vectorstore
@@ -180,6 +191,10 @@ class HybridMemoryManager:
         2. If relevant context found, use LLM to rewrite message.
         3. Otherwise, return message unchanged.
         """
+
+        if self.vectorstore is None:
+            return user_input
+
         retrieved = self.retrieve_semantic_context(user_input, k=k, similarity_threshold=similarity_threshold)
         history_text = self.get_recent_history()
 
