@@ -2,6 +2,11 @@ import asyncio
 import glob
 import logging
 import os
+
+import asyncio
+import threading
+from queue import Queue, Empty
+
 import streamlit as st
 import threading
 
@@ -493,11 +498,20 @@ def display_dataset(dataset, message_index):
         mime='text/csv',
         key=f"download_csv_{message_index}",
     )
+    # Display metadata if selected
+    if show_meta:
+        with st.expander("ℹ️ Metadata", expanded=True):
+            if metadata:
+                for key, value in metadata.items():
+                    st.write(f"**{key}:** {value}")
+            else:
+                st.write("No metadata available")
+
 
 
 def async_to_sync(async_gen):
     queue = Queue()
-
+    
     async def produce():
         try:
             async for item in async_gen:
