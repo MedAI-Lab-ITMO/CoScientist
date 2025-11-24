@@ -1,5 +1,5 @@
 from collections import deque
-from typing import List, Dict, Any
+from typing import List, Dict, Any, AsyncGenerator
 from langchain_community.vectorstores import FAISS
 from langchain_core.documents.base import Document
 from langchain.prompts import ChatPromptTemplate
@@ -12,6 +12,8 @@ from langchain_core.embeddings import Embeddings
 from langchain_core.language_models.chat_models import BaseChatModel
 from protollm.agents.builder import GraphBuilder
 from langchain_core.messages import AIMessage
+import asyncio
+
 
 #from dotenv import load_dotenv 
 #load_dotenv('/app/config.env')
@@ -116,7 +118,7 @@ class CustomEmbeddings(Embeddings):
             response = requests.post(
                 embedding_service_url,
                 json=texts,
-                timeout=1000
+                timeout=60
             )
             response.raise_for_status()
             return response.json()["embeddings"]
@@ -167,9 +169,18 @@ class HybridMemoryManager:
         doc = Document(page_content=content, metadata={"role": role})
         self.vectorstore.add_documents([doc])
         
-        # Check if document was added
-        doc_count = len(self.vectorstore.index_to_docstore_id)
-    
+    async def add_message_async(self, role: str, content: str):
+        """Async version of add_message"""
+        if self.vectorstore is None:
+            return
+        
+        # Add to short memory (this is fast)
+        self.short_memory.append({"role": role, "content": content})
+        
+        # Add to vectorstore asynchronously
+        doc = Document(page_content=content, metadata={"role": role})
+        await asyncio.to_thread(self.vectorstore.add_documents, [doc])
+        
     def get_recent_history(self) -> str:
         """Return short recent dialogue context"""
         return "\n".join([f"{m['role']}: {m['content']}" for m in self.short_memory])
@@ -220,14 +231,22 @@ class HybridMemoryManager:
             self.logger.info(f'RESOLVED MESSAGE BY MEMORY: ORIGINAL: {user_input},\t RESOLVED: {resolved.content.strip()}')
         return resolved.content.strip()
 
-
+    async def _store_messages_async(self, user_text: str, response_data: dict):
+        """Async version of message storage"""
+        await self.add_message_async(role='user', content=user_text)
+        
+        if isinstance(response_data['response'], str):
+            await self.add_message_async(role='system', content=response_data["response"])
+        elif isinstance(response_data['response'], AIMessage):
+            await self.add_message_async(role='system', content=response_data["response"].content)
+            
 class MemoryGraph(HybridMemoryManager):
     def __init__(self, config: Dict, llm: BaseChatModel, embeddings: Embeddings = CustomEmbeddings(), k: int = 3, short_memory_size: int = 3, logger = None):
         super().__init__(llm, short_memory_size, embeddings, logger)
         self.graph = GraphBuilder(config)
         self.k = k
 
-    def stream(self, inputs: dict, image_path: str = "", user_id: str = "1"):
+    async def stream(self, inputs: dict, image_path: str = "", user_id: str = "1") -> AsyncGenerator[Dict[str, Any], None]:
         user_text = inputs.get('input')
         if not user_text:
             raise ValueError(f"Inputs must have key 'input': {inputs}")
@@ -235,11 +254,12 @@ class MemoryGraph(HybridMemoryManager):
         input_msg = self.resolve_message(user_input=user_text, k = self.k)
         inputs['input'] = input_msg
 
+        responses = []
         for v in self.graph.stream(inputs, image_path, user_id):
-            yield (v)
+            yield v
+            responses.append(v)
 
-        self.add_message(role='user', content=user_text)
-        if isinstance(v['response'], str):
-            self.add_message(role='system', content=v["response"])
-        elif isinstance(v['response'], AIMessage):
-            self.add_message(role='system', content=v["response"].content)
+        if responses:
+            last_response = responses[-1]
+            # Fire and forget the message storage
+            asyncio.create_task(self._store_messages_async(user_text, last_response))
