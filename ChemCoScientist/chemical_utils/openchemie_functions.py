@@ -24,7 +24,7 @@ def extract_reactions_from_pdf(file: bytes) -> List[Dict]:
         response (List[Dict]): List of reactions in pdf file for each page.
     """
     response = requests.post(f"{OPENCHEMIE_URL}/extract_reactions_from_pdf/", files={"pdf_file": file})
-    return response.json()["response"]
+    return response.json()["data"]
 
 
 def extract_reactions_from_figure(image: bytes) -> List[Dict]:
@@ -39,7 +39,7 @@ def extract_reactions_from_figure(image: bytes) -> List[Dict]:
         response (List[Dict]): List of reactions on the image.
     """
     response = requests.post(f"{OPENCHEMIE_URL}/extract_reactions_from_figure/", files={"image": image})
-    return response.json()["response"]  
+    return response.json()["data"]  
 
 
 def extract_molecules_from_pdf(file: bytes) -> List[Dict]:
@@ -69,7 +69,7 @@ def extract_molecules_from_figure(image: bytes) -> List[Dict]:
         response (List[Dict]): List of molecules on the image.
     """
     response = requests.post(f"{OPENCHEMIE_URL}/extract_molecules_from_figure/", files={"image": image})
-    return response.json()["response"]
+    return response.json()["data"]
 
 
 def convert_image_to_smiles(image: bytes) -> str:
@@ -82,4 +82,4 @@ def convert_image_to_smiles(image: bytes) -> str:
         response (str): SMILES string of the image.
     """
     response = requests.post(f"{OPENCHEMIE_URL}/convert_image_to_smiles/", files={"image": image})
-    return response.json()["response"]
+    return response.json()["data"]
