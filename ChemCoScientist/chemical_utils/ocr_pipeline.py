@@ -1,0 +1,162 @@
+from pprint import pprint
+import os, io
+from PIL import Image, ImageDraw
+import pandas as pd
+from pathlib import Path
+
+from openchemie_functions import *
+
+def draw_bboxes_on_image(
+    image: bytes, 
+    bboxes: List[List],
+) -> bytes:
+    """
+    Draw bounding boxes of deceted molecules and reactions on the provided image.
+    
+    Args:
+        image (bytes): Original user image
+        bboxes (List[List]): List of bounding boxes [x1, y1, x2, y2]
+    
+    Returns:
+        bytes: JPEG image with rectangles drawn.
+    """
+    img = Image.open(io.BytesIO(image))
+    draw = ImageDraw.Draw(img)
+    
+    w, h = img.size
+
+    for bbox in bboxes:
+        x1 = bbox[0] * w
+        y1 = bbox[1] * h
+        x2 = bbox[2] * w
+        y2 = bbox[3] * h
+        draw.rectangle([x1, y1, x2, y2], outline="red", width=3)
+
+    output = io.BytesIO()
+    img.save(output, format="JPEG", quality=95)
+    return output.getvalue()
+
+
+def molecules_ocr(images: list[str]) -> dict[str, list[str]]:
+    """
+    Extracts molecules from a list of image paths using OpenChemIE tools and
+    saves annotated versions of each image with bounding boxes around detected
+    molecular structures.
+
+    Parameters
+    ----------
+    images : list[str]
+        List of paths to input images.
+
+    Returns
+    -------
+    dict[str, list[str]]
+        A dictionary mapping each image filename to a list of extracted SMILES
+        strings derived from detected molecules in that image.
+
+    Side Effects
+    ------------
+    - Saves an annotated image for each input image as <original_name>_annotated.jpg,
+      containing bounding boxes around detected molecules.
+    """
+    
+    result = dict()
+    
+    for img_path in images:
+        img_path = Path(img_path)
+        img_bytes = img_path.read_bytes()
+        
+        openchemie_result = extract_molecules_from_figure(image=img_bytes)
+        
+        entries = openchemie_result[0].get("bboxes", [])
+        if not entries:
+            raise ValueError(f"No molecular entries detected in image: {img_path}")
+        
+        bboxes, smiles = [], []
+        
+        for entry in entries:
+            smi = entry.get("smiles")
+            if smi:
+                smiles.append(smi)
+                bboxes.append(entry.get("bbox"))
+        
+        annotated_img = draw_bboxes_on_image(img_bytes, bboxes)
+        out_path = img_path.with_name(f"{img_path.stem}_annotated.jpg")
+        out_path.write_bytes(annotated_img)
+            
+        result[img_path.name] = smiles
+    
+    return result
+
+
+def reactions_ocr(images: list[str]) -> dict[str, list[str]]:
+    """
+    Extracts reactions from a list of image paths using OpenChemIE tools
+    and saves annotated versions of each image with bounding boxes of detected reaction elements.
+
+    Parameters
+    ----------
+    images : list[str]
+        List of paths to input images.
+
+    Returns
+    -------
+    dict[str, list[str]]
+        A dictionary mapping each image filename to a list of extracted reaction elements
+        such as reactants, conditions and products.
+    
+    Side Effects
+    ------------
+    - Saves an annotated image for each input image as <original_name>_annotated.jpg
+      containing bounding boxes around detected reaction elements.
+    """
+    result = dict()
+    
+    for img_path in images:
+        img_path = Path(img_path)
+        img_bytes = img_path.read_bytes()
+        
+        openchemie_result = extract_reactions_from_figure(image=img_bytes)
+        
+        entries = openchemie_result[0].get("reactions", [])
+        if not entries:
+            raise ValueError(f"No reaction entries detected in image: {img_path}")
+        
+        bboxes = []
+        result[img_path.name] = {"reactants": [], "conditions": [], "products": []}
+        
+        for entry in entries:
+            pprint(entry)
+            for r in entry.get("reactants", []):
+                bboxes.append(r["bbox"])
+                try:
+                    result[img_path.name]["reactants"].append(r["smiles"])
+                except:
+                    result[img_path.name]["reactants"].append(r["text"])
+
+            for p in entry.get("products", []):
+                bboxes.append(p["bbox"])
+                try:
+                    result[img_path.name]["products"].append(p["smiles"])
+                except:
+                    result[img_path.name]["products"].append(p["text"])
+
+            for c in entry.get("conditions", []):
+                bboxes.append(c["bbox"])
+                try:
+                    result[img_path.name]["conditions"].append(c["smiles"])
+                except:
+                    result[img_path.name]["conditions"].append(c["text"])
+        
+        annotated_img = draw_bboxes_on_image(img_bytes, bboxes)
+        out_path = img_path.with_name(f"{img_path.stem}_annotated.jpg")
+        out_path.write_bytes(annotated_img)
+    
+    return result
+
+
+if __name__ == "__main__":
+    directory = Path(r"C:\Users\computer\Documents\GitHub\CoScientist\PaperAnalysis\ocr\reactions")
+    full_paths = [p.resolve() for p in directory.iterdir() if p.is_file()]
+    # pprint(molecules_ocr(full_paths))
+    pprint(reactions_ocr(full_paths))
