@@ -1,6 +1,7 @@
 import ast
 import os
 import time
+import json
 from typing import Annotated
 import operator
 import streamlit as st
@@ -16,8 +17,9 @@ from ChemCoScientist.agents.agents_prompts import (
     automl_prompt,
     ds_builder_prompt,
     worker_prompt,
+    chem_ocr_prompt
 )
-from ChemCoScientist.tools import chem_tools, nanoparticle_tools, paper_analysis_tools, data_tools
+from ChemCoScientist.tools import chem_tools, nanoparticle_tools, paper_analysis_tools, data_tools, chem_ocr_tools
 from ChemCoScientist.tools.ml_tools import agents_tools as automl_tools
 
 from ChemCoScientist.agents.agents_prompts import paper_agent_prompt, coder_prompt
@@ -391,5 +393,78 @@ def paper_analysis_agent(state: dict, config: dict) -> Command:
 
     return Command(goto=END, update={
         "response": "I cannot answer your question right now using the DB or uploaded papers."
+                    "Can I help with something else?"
+    })
+    
+
+def chem_ocr_agent(state: dict, config: dict) -> Command:
+    """
+    Extracts molecular structures and reaction information from images.
+
+    This agent processes user-provided chemical images—such as reaction schemes, 
+    drawn molecules, or figures from papers—and converts them into machine-readable 
+    formats. It attempts to identify molecular structures, reaction components, 
+    and other depicted chemical entities, returning standardized SMILES.
+
+    Args:
+        state (dict): The current state of the interaction, including images or PDFs provided by user.
+        config (dict): Configuration settings, including the OCR pipeline to use.
+
+    Returns:
+        Command: An object containing the next step in the process ('replan' or `END`) 
+        and updates to the state, including extracted SMILES, user images with detected chemical entities
+        and any error produced during parsing.
+    """
+    print("--------------------------------")
+    print("ChemOCR agent called")
+    print("Current task:")
+    print(state["task"])
+    print("--------------------------------")
+
+    llm: BaseChatModel = config["configurable"]["llm"]
+
+    task = state["task"]
+
+    # TODO: update this when proper frontend is added
+    try:
+        current_prompt = f'{chem_ocr_prompt}\n session_id = {st.session_state.session_id}'
+    except:
+        current_prompt = f'{chem_ocr_prompt}\nsession_id is not needed in this case, pass None'
+
+    chem_ocr_agent = create_react_agent(
+        llm, chem_ocr_tools, state_modifier=current_prompt
+    )
+
+    for attempt in range(3):
+        try:
+            response = chem_ocr_agent.invoke({"messages": [("user", task)]})
+
+            result = ast.literal_eval(response["messages"][2].content)
+            
+            answer_serialized = json.dumps(result["answer"], sort_keys=True)
+
+            updated_metadata = state.get("metadata", {}).copy()
+            ocr_metadata = {"chem_ocr": result.get("metadata", None)}
+            if ocr_metadata["chem_ocr"]:
+                if "chem_ocr" in updated_metadata.keys():
+                    updated_metadata["chem_ocr"].update(ocr_metadata["chem_ocr"])
+                else:
+                    updated_metadata.update(ocr_metadata)
+
+            return Command(update={
+                "past_steps": Annotated[set, operator.or_](set([
+                    (task, answer_serialized)
+                ])),
+                "nodes_calls": Annotated[set, operator.or_](set([
+                    ("chem_ocr_agent", (("text", answer_serialized),))
+                ])),
+                "metadata": Annotated[dict, operator.or_](updated_metadata),
+            })
+        except Exception as e:
+            print(f"ChemOCR agent error: {str(e)}. Retrying ({attempt + 1}/3)")
+            time.sleep(1.2 ** attempt)
+
+    return Command(goto=END, update={
+        "response": "I cannot extract molecules or reactions right now."
                     "Can I help with something else?"
     })

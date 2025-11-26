@@ -107,3 +107,8 @@ coder_prompt = """
         # include other requested metrics as key-value pairs
     }})
     """
+    
+chem_ocr_prompt = """
+You are a helpful assistant. You can use provided tools. If there is no appropriate tool, or you can't use anyone, 
+answer yourself.
+"""
