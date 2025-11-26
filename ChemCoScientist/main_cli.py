@@ -12,7 +12,7 @@ import conf.create_conf as cc
 # membrans
 # inputs = {"input": "What are the three primary sources from which lithium is currently obtained?"}
 # inputs = {"input": "What is the typical effect of modifying a nanofiltration membrane surface with a positively charged polymer layer (e.g., PEI) on its selectivity for Li+ over Mg2+, and what is the underlying principle?"}
-inputs = {"input": "What is a key advantage of electrodialysis with bipolar membranes (EDBM) for lithium recovery, and how does the presence of competing monovalent ions like Na+ and K+ affect Li+ flux and energy consumption?"}
+# inputs = {"input": "What is a key advantage of electrodialysis with bipolar membranes (EDBM) for lithium recovery, and how does the presence of competing monovalent ions like Na+ and K+ affect Li+ flux and energy consumption?"}
 
 # nanozymes
 # inputs = {"input": "What is the optimal pH for the catalytic activity of platinum-nickel nanoparticles, and what is the observed maximal reaction velocity (vmax) for these nanoparticles when catalyzing the oxidation of TMB?"}
@@ -30,8 +30,12 @@ inputs = {"input": "What is a key advantage of electrodialysis with bipolar memb
 # inputs = {"input": "What is the effect of using a lower molecular weight PEO (MW = 10,000 g/mol ) within the PI host on the performance of a Li/LiFePO₄ all-solid-state cell at a lower operating temperature of 30°C?"}
 
 # Paper analysis
-graph = GraphBuilder(cc.conf)
+# graph = GraphBuilder(cc.conf)
 # inputs = {"input": "question = 'How does the synthesis of Glionitrin A/B happen?'"}
+
+# ChemOCR
+graph = GraphBuilder(cc.conf)
+inputs = {"input": "question = 'Extract all molecules from these images.'"}
 
 if __name__ == "__main__":
     for step in graph.stream(inputs, user_id="1"):

@@ -1,6 +1,7 @@
 import ast
 import os
 import time
+import json
 from typing import Annotated
 import operator
 import streamlit as st
@@ -439,14 +440,25 @@ def chem_ocr_agent(state: dict, config: dict) -> Command:
             response = chem_ocr_agent.invoke({"messages": [("user", task)]})
 
             result = ast.literal_eval(response["messages"][2].content)
+            
+            answer_serialized = json.dumps(result["answer"], sort_keys=True)
+
+            updated_metadata = state.get("metadata", {}).copy()
+            ocr_metadata = {"chem_ocr": result.get("metadata", None)}
+            if ocr_metadata["chem_ocr"]:
+                if "chem_ocr" in updated_metadata.keys():
+                    updated_metadata["chem_ocr"].update(ocr_metadata["chem_ocr"])
+                else:
+                    updated_metadata.update(ocr_metadata)
 
             return Command(update={
                 "past_steps": Annotated[set, operator.or_](set([
-                    (task, result["answer"])
+                    (task, answer_serialized)
                 ])),
                 "nodes_calls": Annotated[set, operator.or_](set([
-                    ("chem_ocr_agent", (("text", result["answer"]),))
-                ]))
+                    ("chem_ocr_agent", (("text", answer_serialized),))
+                ])),
+                "metadata": Annotated[dict, operator.or_](updated_metadata),
             })
         except Exception as e:
             print(f"ChemOCR agent error: {str(e)}. Retrying ({attempt + 1}/3)")

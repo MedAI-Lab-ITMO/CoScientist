@@ -7,7 +7,6 @@ import os
 from definitions import CONFIG_PATH
 from pathlib import Path
 
-from ChemCoScientist.frontend.memory import SELECTED_PAPERS
 from ChemCoScientist.chemical_utils.ocr_pipeline import molecules_ocr, reactions_ocr
 
 load_dotenv(CONFIG_PATH)
@@ -46,18 +45,10 @@ def detect_molecules(session_id: str = None) -> Dict:
     """
     print('Running extract_molecules tool...')
     try:
-        # TODO: remove when proper frontend is added
-        if not SELECTED_PAPERS:
-            directory = Path(os.environ.get('OCR_IMAGES_PATH'))
-            images = [str(f.resolve()) for f in directory.iterdir() if f.is_file() and f.suffix.lower() == '.jpg']
-
-            if not images:
-                return {'answer': 'No images provided for OCR.'}
-        else:
-            if not SELECTED_PAPERS.get(session_id, []):
-                return {'answer': 'No images provided for OCR.'}
-            images = SELECTED_PAPERS[session_id]
-
+        directory = Path(os.environ.get('IMG_STORAGE_PATH'))
+        images = [str(f.resolve()) for f in directory.iterdir() if f.is_file() and f.suffix.lower() == '.jpg']
+        if not images:
+            return {'answer': 'No images provided for OCR.'}
         return molecules_ocr(images)
     except Exception as e:
         logger.error(f'molecules_ocr ERROR: {e}')
@@ -93,22 +84,14 @@ def detect_reactions(session_id: str = None) -> Dict:
     """
     print('Running extract_reactions tool...')
     try:
-        # TODO: remove when proper frontend is added
-        if not SELECTED_PAPERS:
-            directory = Path(os.environ.get('OCR_IMAGES_PATH'))
-            images = [str(f.resolve()) for f in directory.iterdir() if f.is_file() and f.suffix.lower() == '.jpg']
-
-            if not images:
-                return {'answer': 'No images provided for OCR.'}
-        else:
-            if not SELECTED_PAPERS.get(session_id, []):
-                return {'answer': 'No images provided for OCR.'}
-            images = SELECTED_PAPERS[session_id]
-
+        directory = Path(os.environ.get('IMG_STORAGE_PATH'))
+        images = [str(f.resolve()) for f in directory.iterdir() if f.is_file() and f.suffix.lower() == '.jpg']
+        if not images:
+            return {'answer': 'No images provided for OCR.'}
         return reactions_ocr(images)
     except Exception as e:
-        logger.error(f'reactions_ocr ERROR: {e}')
-        return {'answer': 'Could not detect any reactions in the uploaded images.'}
+        logger.error(f'molecules_ocr ERROR: {e}')
+        return {'answer': 'Could not detect any molecules in the uploaded images.'}
 
 
 chem_ocr_tools = [

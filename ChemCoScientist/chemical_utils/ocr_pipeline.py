@@ -4,11 +4,11 @@ from PIL import Image, ImageDraw
 import pandas as pd
 from pathlib import Path
 
-from openchemie_functions import *
+from ChemCoScientist.chemical_utils.openchemie_functions import extract_molecules_from_figure, extract_reactions_from_figure
 
 def draw_bboxes_on_image(
     image: bytes, 
-    bboxes: List[List],
+    bboxes: list[list],
 ) -> bytes:
     """
     Draw bounding boxes of deceted molecules and reactions on the provided image.
@@ -37,7 +37,7 @@ def draw_bboxes_on_image(
     return output.getvalue()
 
 
-def molecules_ocr(images: list[str]) -> dict[str, list[str]]:
+def molecules_ocr(images: list[str]) -> tuple[dict[str, list[str]], bytes]:
     """
     Extracts molecules from a list of image paths using OpenChemIE tools and
     saves annotated versions of each image with bounding boxes around detected
@@ -61,6 +61,7 @@ def molecules_ocr(images: list[str]) -> dict[str, list[str]]:
     """
     
     result = dict()
+    annotated_images = []
     
     for img_path in images:
         img_path = Path(img_path)
@@ -85,11 +86,17 @@ def molecules_ocr(images: list[str]) -> dict[str, list[str]]:
         out_path.write_bytes(annotated_img)
             
         result[img_path.name] = smiles
+        annotated_images.append(out_path.as_posix())
     
-    return result
+    return {
+        "answer": result,
+        "metadata": {
+            "annotated_images": annotated_images
+                }
+        }
 
 
-def reactions_ocr(images: list[str]) -> dict[str, list[str]]:
+def reactions_ocr(images: list[str]) -> tuple[dict[str, list[str]], bytes]:
     """
     Extracts reactions from a list of image paths using OpenChemIE tools
     and saves annotated versions of each image with bounding boxes of detected reaction elements.
@@ -111,6 +118,7 @@ def reactions_ocr(images: list[str]) -> dict[str, list[str]]:
       containing bounding boxes around detected reaction elements.
     """
     result = dict()
+    annotated_images = []
     
     for img_path in images:
         img_path = Path(img_path)
@@ -151,12 +159,19 @@ def reactions_ocr(images: list[str]) -> dict[str, list[str]]:
         annotated_img = draw_bboxes_on_image(img_bytes, bboxes)
         out_path = img_path.with_name(f"{img_path.stem}_annotated.jpg")
         out_path.write_bytes(annotated_img)
+        
+        annotated_images.append(out_path.as_posix())
     
-    return result
+    return {
+        "answer": result,
+        "metadata": {
+            "annotated_images": annotated_images
+                }
+        }
 
 
 if __name__ == "__main__":
-    directory = Path(r"C:\Users\computer\Documents\GitHub\CoScientist\PaperAnalysis\ocr\reactions")
-    full_paths = [p.resolve() for p in directory.iterdir() if p.is_file()]
-    # pprint(molecules_ocr(full_paths))
-    pprint(reactions_ocr(full_paths))
+    directory = Path(r"C:\Users\computer\Documents\GitHub\CoScientist\ChemCoScientist\data_store\reactions")
+    image_paths = [p.resolve() for p in directory.iterdir() if p.is_file()]
+    # pprint(molecules_ocr(image_paths))
+    pprint(reactions_ocr(image_paths))
