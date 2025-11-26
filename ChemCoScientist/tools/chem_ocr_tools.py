@@ -90,7 +90,7 @@ def detect_reactions(session_id: str = None) -> Dict:
             return {'answer': 'No images provided for OCR.'}
         return reactions_ocr(images)
     except Exception as e:
-        logger.error(f'molecules_ocr ERROR: {e}')
+        logger.error(f'reactions_ocr ERROR: {e}')
         return {'answer': 'Could not detect any molecules in the uploaded images.'}
 
 

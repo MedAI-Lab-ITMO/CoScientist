@@ -37,7 +37,7 @@ def draw_bboxes_on_image(
     return output.getvalue()
 
 
-def molecules_ocr(images: list[str]) -> tuple[dict[str, list[str]], bytes]:
+def molecules_ocr(images: list[str]) -> dict:
     """
     Extracts molecules from a list of image paths using OpenChemIE tools and
     saves annotated versions of each image with bounding boxes around detected
@@ -96,7 +96,7 @@ def molecules_ocr(images: list[str]) -> tuple[dict[str, list[str]], bytes]:
         }
 
 
-def reactions_ocr(images: list[str]) -> tuple[dict[str, list[str]], bytes]:
+def reactions_ocr(images: list[str]) -> dict:
     """
     Extracts reactions from a list of image paths using OpenChemIE tools
     and saves annotated versions of each image with bounding boxes of detected reaction elements.
@@ -134,7 +134,6 @@ def reactions_ocr(images: list[str]) -> tuple[dict[str, list[str]], bytes]:
         result[img_path.name] = {"reactants": [], "conditions": [], "products": []}
         
         for entry in entries:
-            pprint(entry)
             for r in entry.get("reactants", []):
                 bboxes.append(r["bbox"])
                 try:
@@ -154,7 +153,8 @@ def reactions_ocr(images: list[str]) -> tuple[dict[str, list[str]], bytes]:
                 try:
                     result[img_path.name]["conditions"].append(c["smiles"])
                 except:
-                    result[img_path.name]["conditions"].append(c["text"])
+                    if c["text"] != []:
+                        result[img_path.name]["conditions"].append(c["text"])
         
         annotated_img = draw_bboxes_on_image(img_bytes, bboxes)
         out_path = img_path.with_name(f"{img_path.stem}_annotated.jpg")
