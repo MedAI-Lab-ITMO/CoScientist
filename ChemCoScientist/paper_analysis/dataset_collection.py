@@ -15,7 +15,7 @@ from definitions import CONFIG_PATH
 
 load_dotenv(CONFIG_PATH)
 
-VISION_LLM_URL = os.environ["VISION_LLM_URL"]
+DATASETS_LLM_URL = os.environ["DATASETS_LLM_URL"]
 
 def convert_pdf_pages_to_images(path: str) -> list:
     """Converts PDF pages into fitz.Pixmap images."""
@@ -150,4 +150,4 @@ def extract_mols_prop_dataset(model_url: str, question: str, pdfs: list) -> pd.D
 #     pdfs = [r"C:\Users\computer\Documents\GitHub\CoScientist\ChemCoScientist\paper_analysis\papers\187152108785908820.pdf",
 #             r"C:\Users\computer\Documents\GitHub\CoScientist\ChemCoScientist\paper_analysis\papers\ph16040516.pdf"]
 #     question = "Collect a dataset of molecules and their MIC values against Staphylococcus aureus."
-#     extract_mols_prop_dataset(VISION_LLM_URL, question, pdfs)
+#     extract_mols_prop_dataset(DATASETS_LLM_URL, question, pdfs)
