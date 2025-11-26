@@ -5,7 +5,7 @@ import fitz
 from io import BytesIO, StringIO
 from PIL import Image
 from langchain_core.messages import SystemMessage, HumanMessage
-from protollm.connectors import create_llm_connector
+from protollm.connectors import create_llm_connector, get_allowed_providers
 
 from ChemCoScientist.chemical_utils.openchemie_functions import extract_molecules_from_figure
 from ChemCoScientist.paper_analysis.settings import allowed_providers
@@ -70,7 +70,7 @@ def extract_props(model_url: str, question: str, pdfs: list) -> dict:
 
     if pdfs:
         update_activity(os.path.dirname(pdfs[0]))
-    llm = create_llm_connector(model_url)
+    llm = create_llm_connector(model_url, extra_body={"provider": {"only": get_allowed_providers()}})
 
     content = []
 
@@ -127,10 +127,17 @@ def extract_mols_prop_dataset(model_url: str, question: str, pdfs: list) -> pd.D
     Returns:
         pd.DataFrame: A dataset with molecular IDs, SMILES and required properties extracted from provided PDF documents.
     """
+    print(f'PDFS: {pdfs}')
     all_datasets = []
     for pdf in pdfs:
         images = convert_pdf_pages_to_images(pdf)
         results = extract_smiles_from_images(images)
+        # if '187152108785908820' in pdf:
+        #     with open('/Users/lizzy/Downloads/187152108785908820_pages.json', 'r', encoding='utf-8') as f:
+        #         results = json.load(f)
+        # else:
+        #     with open('/Users/lizzy/Downloads/2023.12.si5a.0471.pdf_pages.json', 'r', encoding='utf-8') as f:
+        #         results = json.load(f)
         mols_df = mols_to_csv(results)
         mols_df['id'] = mols_df['id'].astype(str)
         props_df = extract_props(model_url, question, [pdf])
@@ -142,12 +149,12 @@ def extract_mols_prop_dataset(model_url: str, question: str, pdfs: list) -> pd.D
     combined_dataset = pd.concat(all_datasets, ignore_index=True)
     final_dataset = reorder_columns(combined_dataset)
     final_dataset.to_csv("final_dataset.csv", sep="\t", index=False)
-    
     return final_dataset
 
 
 # if __name__ == "__main__":
 #     pdfs = [r"C:\Users\computer\Documents\GitHub\CoScientist\ChemCoScientist\paper_analysis\papers\187152108785908820.pdf",
 #             r"C:\Users\computer\Documents\GitHub\CoScientist\ChemCoScientist\paper_analysis\papers\ph16040516.pdf"]
+#     pdfs = ['/Users/lizzy/Downloads/187152108785908820.pdf', '/Users/lizzy/Downloads/ph16040516.pdf']
 #     question = "Collect a dataset of molecules and their MIC values against Staphylococcus aureus."
 #     extract_mols_prop_dataset(DATASETS_LLM_URL, question, pdfs)

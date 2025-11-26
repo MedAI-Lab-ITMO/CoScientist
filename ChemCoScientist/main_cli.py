@@ -29,6 +29,7 @@ import conf.create_conf as cc
 # inputs = {"input": "What is the proposed rate-determining step for the oxidation of ethylene glycol to glycolic acid on an Au/NiO surface with oxygen vacancies, and what specific roles do the "AuNi alloy" and NiO-Ov structures at the interface play in this step?"}
 # inputs = {"input": "What is the effect of using a lower molecular weight PEO (MW = 10,000 g/mol ) within the PI host on the performance of a Li/LiFePO₄ all-solid-state cell at a lower operating temperature of 30°C?"}
 inputs = {"input": "How does the calculated spin-wave spectrum of Cu₂(OH)₃X vary as the halide (X) is changed from Cl to Br to I, particularly concerning the bandwidth in the interchain direction?"}
+inputs = {"input": "Collect a dataset of molecules and their MIC values against Staphylococcus aureus. Only use the create_dataset_from_papers tool"}
 
 # Paper analysis
 # graph = GraphBuilder(cc.conf)

@@ -138,6 +138,7 @@ def process_question(question: str, store: ChromaDBPaperStore) -> dict:
     relevant_txt_context = []
     img_paths = []
 
+    # Combine text context
     for idx, chunk in enumerate(txt_data, start=1):
         txt_context += (
             f"{idx}. "
@@ -145,6 +146,7 @@ def process_question(question: str, store: ChromaDBPaperStore) -> dict:
             + chunk[1].replace("passage: ", "")
             + "\n\n"
         )
+    # Add molecules and reactions data to text context
     for img in img_data["metadatas"][0]:
         # img_paths.add(img["image_path"])
         molecules_reactions_metadata = {
@@ -153,15 +155,17 @@ def process_question(question: str, store: ChromaDBPaperStore) -> dict:
         }
     txt_context += f"Molecules and reactions data: {molecules_reactions_metadata}\n\n"
 
+    # Combine images for context (from chunk text and from DB)
     for chunk_meta in [chunk[2] for chunk in txt_data]:
-        for img in eval(chunk_meta["imgs_in_chunk"]):
+        for img_path in eval(chunk_meta["imgs_in_chunk"]):
+            img = store.get_image_data(img_path)
             img_paths.append({
-                'path': img,
+                'path': img_path,
                 'Source': chunk_meta['source'],
                 'Paper': chunk_meta['title'],
                 'Year': chunk_meta['year'],
-                # 'Molecules': chunk_meta['molecules'],
-                # 'Reactions': chunk_meta['reactions']
+                'Molecules': img['molecules'],
+                'Reactions': img['reactions']
             })
     for img_meta in img_data["metadatas"][0]:
         if img_meta['image_path'] not in [d['path'] for d in img_paths]:
@@ -177,7 +181,7 @@ def process_question(question: str, store: ChromaDBPaperStore) -> dict:
 
     ans = query_llm(VISION_LLM_URL, question, txt_context, list(img_paths_list))
 
-
+    # Separate relevant context
     relevant_txt_data = [txt_data[num - 1] for num in ans['relevant_text']]
     relevant_img_context = [img_paths[num - 1] for num in ans['relevant_images']]
 
@@ -276,6 +280,7 @@ if __name__ == "__main__":
     question = 'Compare the ionic permeability of GO-PA-based membranes for K+, Na+, Cs+ and Li+ ions as a function of pH. Which ion shows an abnormally high permeability and how does it depend on pH?'
     # question = 'How does the crystallisation rate of LiCl on the surface of the solar evaporator change as the mass ratio of MgCl₂ to LiCl in the stock solution increases?'
     # res = simple_query_llm(VISION_LLM_URL, question, [paper])
+    question = 'Сравни ионную проницаемость мембран на основе GO-PA для ионов K+, Na+, Cs+ и Li+ в зависимости от pH. Какой ион проявляет аномально высокую проницаемость и как она зависит от pH?'
     result = process_question(question, paper_store)
     from pprint import pprint
     pprint(result)

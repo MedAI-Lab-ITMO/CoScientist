@@ -19,7 +19,7 @@ from definitions import ROOT_DIR
 from ChemCoScientist.frontend.utils import get_user_data_dir, get_user_session_id, save_all_files
 from ChemCoScientist.tools.utils import convert_to_base64, convert_to_html
 # from ChemCoScientist.frontend.streamlit_endpoints import explore_my_papers
-from ChemCoScientist.tools.paper_analysis_tools import explore_my_papers
+# from ChemCoScientist.tools.paper_analysis_tools import explore_my_papers, create_dataset_from_papers
 from ChemCoScientist.frontend.utils import clean_folder
 from CoScientist.paper_parser.s3_connection import s3_service
 
@@ -68,7 +68,10 @@ def chat():
                         st.markdown(step)
             # st.markdown(message['content'])
 
-            if message.get("automl_results"):
+            if 'dataset' in message:
+                st.markdown(message["content"])
+                display_dataset(message)
+            elif message.get("automl_results"):
                 st.markdown(message["content"])
                 st.markdown(message["automl_results"])
             else:
@@ -166,70 +169,68 @@ def message_handler(user_query: str, placeholder: st.delta_generator.DeltaGenera
                 if st.session_state.explore_mode:
                     # Use explore_my_papers function instead of general AI assistant
                     # result = explore_my_papers(inputs.get('input', ''), st.session_state.session_id)
-                    result = explore_my_papers.invoke({'task': inputs.get('input', ''), 'session_id': st.session_state.session_id})
+                    # result = explore_my_papers.invoke({'task': inputs.get('input', ''), 'session_id': st.session_state.session_id})
 
                     # st.markdown(result["answer"])
 
-                    st.session_state.messages[-1]["content"] = (result["answer"])
+                    # st.session_state.messages[-1]["content"] = (result["answer"])
 
-                else:
-                    print('In main graph section')
-                    # result = st.session_state.backend.invoke(input=inputs, config=config)
-                    try:
-                        #answers = [{'plan': [['find info'], ['calculate_data', 'get_result']]}, {'response': 'hahaha'}]
-                        #for result in answers:
-                        for result in async_to_sync(st.session_state.backend.stream(inputs, "1")):
-                            print("=================new step=================")
-                            #print(result)
+                    # result = create_dataset_from_papers.invoke(
+                    #     {'task': inputs.get('input', ''), 'session_id': st.session_state.session_id})
+                    # st.session_state.messages[-1]["content"] = "Полученный набор данных:"
+                    # st.session_state.messages[-1]["dataset"] = result.to_json()
+                    inputs['input'] = inputs.get('input', '') + " Only use the files provided by the user to answer " \
+                                                                "the question. You can only use of these tools:" \
+                                                                "create_dataset_from_papers or explore_my_papers tools " \
+                                                                "from paper_analysis_agent."
+                # else:
+                print('In main graph section')
+                # result = st.session_state.backend.invoke(input=inputs, config=config)
+                try:
+                    #answers = [{'plan': [['find info'], ['calculate_data', 'get_result']]}, {'response': 'hahaha'}]
+                    #for result in answers:
+                    # inputs['input'] += " Explore the chemical library to answer this question."  # !!!!!!!!
+                    for result in async_to_sync(st.session_state.backend.stream(inputs, "1")):
+                        print("=================new step=================")
+                        #print(result)
 
-                            if result.get("plan"):
-                                plan = result["plan"]
+                        if result.get("plan"):
+                            plan = result["plan"]
 
-                                if not isinstance(plan, list):
-                                    plan = [plan]
+                            if not isinstance(plan, list):
+                                plan = [plan]
 
-                                for step in plan:
-                                    raw_text = ""
-                                    for i, task in enumerate(step):
-                                        raw_text += f"({i}) " + task + ' '
+                            for step in plan:
+                                raw_text = ""
+                                for i, task in enumerate(step):
+                                    raw_text += f"({i}) " + task + ' '
 
-                                    if len(step) > 1:
-                                        formatted_text = (
-                                            f"📝 {raw_text}" if "Step" in raw_text else f"**📝 Step with parallel launch:** {raw_text}"
-                                        )
-                                    else:
-                                        formatted_text = (
-                                            f"📝 {raw_text}" if "Step" in raw_text else f"**📝 Step:** {raw_text}"
-                                        )
+                                if len(step) > 1:
+                                    formatted_text = (
+                                        f"📝 {raw_text}" if "Step" in raw_text else f"**📝 Step with parallel launch:** {raw_text}"
+                                    )
+                                else:
+                                    formatted_text = (
+                                        f"📝 {raw_text}" if "Step" in raw_text else f"**📝 Step:** {raw_text}"
+                                    )
 
-                                    existing_steps = set(st.session_state.messages[-1]["steps"])
-                                    if formatted_text not in existing_steps:
-                                        st.session_state.messages[-1]["steps"].append(formatted_text)
-                                        existing_steps.add(formatted_text)
-                                        steps_container.markdown(formatted_text)
+                                existing_steps = set(st.session_state.messages[-1]["steps"])
+                                if formatted_text not in existing_steps:
+                                    st.session_state.messages[-1]["steps"].append(formatted_text)
+                                    existing_steps.add(formatted_text)
+                                    steps_container.markdown(formatted_text)
 
-                                # with expander_placeholder.container():
-                                #     if st.session_state.messages[-1]['steps']:  # Only render if steps exist
-                                #         for step in st.session_state.messages[-1]['steps']:
-                                #             st.markdown(step)
+                            # with expander_placeholder.container():
+                            #     if st.session_state.messages[-1]['steps']:  # Only render if steps exist
+                            #         for step in st.session_state.messages[-1]['steps']:
+                            #             st.markdown(step)
 
-                            if result.get("past_steps") and not result.get("automl_results"):
-                                past_steps = result.get('past_steps')
-                                first_step = list(past_steps)[-1]
-                                text = f"**✅ Result of last step:** {first_step[1]}"
+                        if result.get("past_steps") and not result.get("automl_results"):
+                            past_steps = result.get('past_steps')
+                            first_step = list(past_steps)[-1]
+                            text = f"**✅ Result of last step:** {first_step[1]}"
 
-                                if text not in st.session_state.messages[-1]["steps"]:
-                                    st.session_state.messages[-1]["steps"].append(text)
-                                    with expander_placeholder.container():
-                                        if st.session_state.messages[-1][
-                                            "steps"
-                                        ]:  # Only render if steps exist
-                                            for step in st.session_state.messages[-1]["steps"]:
-                                                st.markdown(step)
-
-
-                            elif result.get("automl_results"):
-                                text = f"**✅ Result of last step:** Automl is done"
+                            if text not in st.session_state.messages[-1]["steps"]:
                                 st.session_state.messages[-1]["steps"].append(text)
                                 with expander_placeholder.container():
                                     if st.session_state.messages[-1][
@@ -237,30 +238,41 @@ def message_handler(user_query: str, placeholder: st.delta_generator.DeltaGenera
                                     ]:  # Only render if steps exist
                                         for step in st.session_state.messages[-1]["steps"]:
                                             st.markdown(step)
-                                    else:
-                                        st.write(" ")  # Ensures blank space instead of None
 
-                                st.session_state.messages[-1]["automl_results"] = result.get(
-                                    "automl_results"
-                                )
-                    except GraphRecursionError:
-                        result["response"] = (
-                            "Ooops.. It seems that I've caught a recursion limit. Could you simlify your question and try once more?"
-                        )
 
-                    except AttributeError as e:
-                        print(f"ERROR: {e}")
-                        result = dict()
-                        result["response"] = (
-                            "Something went wrong. Please reload the page, initialize models and try again. If this happens again, check your base url and api key"
-                        )
+                        elif result.get("automl_results"):
+                            text = f"**✅ Result of last step:** Automl is done"
+                            st.session_state.messages[-1]["steps"].append(text)
+                            with expander_placeholder.container():
+                                if st.session_state.messages[-1][
+                                    "steps"
+                                ]:  # Only render if steps exist
+                                    for step in st.session_state.messages[-1]["steps"]:
+                                        st.markdown(step)
+                                else:
+                                    st.write(" ")  # Ensures blank space instead of None
 
-                    # st.session_state.messages.append({'role': 'assistant', "content": result['response']})
-                    st.session_state.messages[-1]["content"] = result["response"]
+                            st.session_state.messages[-1]["automl_results"] = result.get(
+                                "automl_results"
+                            )
+                except GraphRecursionError:
+                    result["response"] = (
+                        "Ooops.. It seems that I've caught a recursion limit. Could you simlify your question and try once more?"
+                    )
 
-                    # clean_folder(os.path.join(ROOT_DIR, os.environ["DS_STORAGE_PATH"]))
-                    # clean_folder(os.path.join(ROOT_DIR, os.environ["IMG_STORAGE_PATH"]))
-                    # clean_folder(os.path.join(ROOT_DIR, os.environ["ANOTHER_STORAGE_PATH"]))
+                except AttributeError as e:
+                    print(f"ERROR: {e}")
+                    result = dict()
+                    result["response"] = (
+                        "Something went wrong. Please reload the page, initialize models and try again. If this happens again, check your base url and api key"
+                    )
+
+                # st.session_state.messages.append({'role': 'assistant', "content": result['response']})
+                st.session_state.messages[-1]["content"] = result["response"]
+
+                # clean_folder(os.path.join(ROOT_DIR, os.environ["DS_STORAGE_PATH"]))
+                # clean_folder(os.path.join(ROOT_DIR, os.environ["IMG_STORAGE_PATH"]))
+                # clean_folder(os.path.join(ROOT_DIR, os.environ["ANOTHER_STORAGE_PATH"]))
 
             if st.session_state.images_b64:  # get user's submitted images
                 st.session_state.messages[-1][
@@ -307,7 +319,9 @@ def message_handler(user_query: str, placeholder: st.delta_generator.DeltaGenera
 
             with st.chat_message("assistant"):
                 msg = st.session_state.messages[-1]
-                if msg.get("automl_results"):
+                if 'dataset' in msg:
+                    display_dataset(msg)
+                elif msg.get("automl_results"):
                     st.markdown(msg["content"])
                     st.markdown(msg["automl_results"])
                 else:
@@ -349,6 +363,7 @@ def message_handler(user_query: str, placeholder: st.delta_generator.DeltaGenera
 
                     # Store metadata in the message for later display
                     if "paper_analysis" in result["metadata"].keys():
+                        print('in paper_analysis section')
                         st.session_state.messages[-1]["paper_analysis"] = result["metadata"]["paper_analysis"]
                         # Display the metadata immediately after storing it
                         message_index = len(st.session_state.messages) - 1
@@ -395,101 +410,133 @@ def display_paper_analysis_metadata(message, message_index):
     if "paper_analysis" not in message:
         return
 
+    print('in display_paper_analysis_metadata function')
+
     paper_analysis = message["paper_analysis"]
-    text_context = paper_analysis.get("text_context")
-    images_context = paper_analysis.get("image_context")
-    metadata = paper_analysis.get("metadata")
 
-    # Create unique keys for this message's checkboxes
-    text_key = f"text_context_{message_index}"
-    images_key = f"image_context_{message_index}"
-    meta_key = f"metadata_{message_index}"
+    if "dataset" in paper_analysis.keys():
+        display_dataset(paper_analysis.get("dataset"), message_index)
 
-    # Initialize checkbox states in session_state if not present
-    if text_key not in st.session_state:
-        st.session_state[text_key] = False
-    if images_key not in st.session_state:
-        st.session_state[images_key] = False
-    if meta_key not in st.session_state:
-        st.session_state[meta_key] = False
+    if "text_context" in paper_analysis.keys():
+        text_context = paper_analysis.get("text_context")
+        images_context = paper_analysis.get("image_context")
+        metadata = paper_analysis.get("metadata")
 
-    # Create toggles for context display
-    col1, col2, col3 = st.columns(3)
+        # Create unique keys for this message's checkboxes
+        text_key = f"text_context_{message_index}"
+        images_key = f"image_context_{message_index}"
+        meta_key = f"metadata_{message_index}"
 
-    with col1:
-        show_text = st.checkbox(
-            "📄 Text Context",
-            value=st.session_state[text_key],
-            key=text_key
-        )
+        # Initialize checkbox states in session_state if not present
+        if text_key not in st.session_state:
+            st.session_state[text_key] = False
+        if images_key not in st.session_state:
+            st.session_state[images_key] = False
+        if meta_key not in st.session_state:
+            st.session_state[meta_key] = False
 
-    with col2:
-        show_images = st.checkbox(
-            "🖼️ Image Context",
-            value=st.session_state[images_key],
-            key=images_key
-        )
+        # Create toggles for context display
+        col1, col2, col3 = st.columns(3)
 
-    # with col3:
-    #     show_meta = st.checkbox(
-    #         "ℹ️ Metadata",
-    #         value=st.session_state[meta_key],
-    #         key=meta_key
-    #     )
+        with col1:
+            show_text = st.checkbox(
+                "📄 Text Context",
+                value=st.session_state[text_key],
+                key=text_key
+            )
 
-    # Display text context if selected
-    if show_text:
-        with st.expander("📄 Text Context", expanded=True):
-            for text in text_context:
-                st.text_area(f'Text Context:', value=text['chunk'], height=350, disabled=True)
-                description_text = "\n\n".join(f"{k}: {v}" for k, v in text.items() if k not in ['chunk'])
-                description_text = f'{text["Paper"]}, {text["Year"]}'
-                # st.markdown(description_text)
-                # st.caption(f"Sou: {description_text}")
-                st.markdown(f"""<span style="color:black;"><b>Source: </b> {description_text}</span>""",
-                            unsafe_allow_html=True)
+        with col2:
+            show_images = st.checkbox(
+                "🖼️ Image Context",
+                value=st.session_state[images_key],
+                key=images_key
+            )
 
-                # st.text_area("Source: ", value=description_text, height=150, disabled=True)
-                # st.markdown(f'<span style="color:black;"><b>Metadata:</b></span>', unsafe_allow_html=True)
-                # st.text_area(f'<span style="color:black;"><b>Source:</b></span>', value=description_text, height=150, disabled=True)
-                # st.divider()
+        # with col3:
+        #     show_meta = st.checkbox(
+        #         "ℹ️ Metadata",
+        #         value=st.session_state[meta_key],
+        #         key=meta_key
+        #     )
 
-    # Display image context if selected
-    if show_images:
-        with st.expander("🖼️ Image Context", expanded=True):
-            if images_context:
-                for i, image_item in enumerate(images_context):
-                    img_key = f"img_checkbox_{message_index}_{i}"
-                    bucket_name, s3_key = urlparse(image_item['path']).path.split('/', 2)[1:]
+        # Display text context if selected
+        if show_text:
+            with st.expander("📄 Text Context", expanded=True):
+                for text in text_context:
+                    st.text_area(f'Text Context:', value=text['chunk'], height=350, disabled=True)
+                    description_text = "\n\n".join(f"{k}: {v}" for k, v in text.items() if k not in ['chunk'])
+                    description_text = f'{text["Paper"]}, {text["Year"]}'
+                    # st.markdown(description_text)
+                    # st.caption(f"Sou: {description_text}")
+                    st.markdown(f"""<span style="color:black;"><b>Source: </b> {description_text}</span>""",
+                                unsafe_allow_html=True)
 
-                    # Initialize image checkbox state if not present
-                    # if img_key not in st.session_state:
-                    #     st.session_state[img_key] = False
+                    # st.text_area("Source: ", value=description_text, height=150, disabled=True)
+                    # st.markdown(f'<span style="color:black;"><b>Metadata:</b></span>', unsafe_allow_html=True)
+                    # st.text_area(f'<span style="color:black;"><b>Source:</b></span>', value=description_text, height=150, disabled=True)
+                    # st.divider()
 
-                    # show_img = st.checkbox(
-                    #     f'{bucket_name}/{s3_key}',
-                    #     value=st.session_state[img_key],
-                    #     key=img_key
-                    # )
+        # Display image context if selected
+        if show_images:
+            with st.expander("🖼️ Image Context", expanded=True):
+                if images_context:
+                    for i, image_item in enumerate(images_context):
+                        img_key = f"img_checkbox_{message_index}_{i}"
+                        bucket_name, s3_key = urlparse(image_item['path']).path.split('/', 2)[1:]
 
-                    # Display image if selected
-                    try:
-                        pil_image = Image.open(BytesIO(s3_service.get_image_bytes_from_s3(s3_key, bucket_name)))
-                        st.image(pil_image, caption='', width=800)
-                        # image_zoom(pil_image, size=800, zoom_factor=2.0)
+                        # Initialize image checkbox state if not present
+                        # if img_key not in st.session_state:
+                        #     st.session_state[img_key] = False
 
-                        # description_text = "\n\n".join(f"{k}: {v}" for k, v in image_item.items() if k not in ['path'])
-                        # st.markdown(description_text)
+                        # show_img = st.checkbox(
+                        #     f'{bucket_name}/{s3_key}',
+                        #     value=st.session_state[img_key],
+                        #     key=img_key
+                        # )
 
-                        description_text = f'{image_item["Paper"]}, {image_item["Year"]}'
-                        # st.markdown(description_text)
-                        # st.caption(f"Sou: {description_text}")
-                        st.markdown(f"""<span style="color:black;"><b>Source: </b> {description_text}</span>""",
-                                    unsafe_allow_html=True)
-                    except Exception as e:
-                        st.error(f"Could not display image: {image_item}. Error: {str(e)}")
-            else:
-                st.write("No image context available")
+                        # Display image if selected
+                        try:
+                            pil_image = Image.open(BytesIO(s3_service.get_image_bytes_from_s3(s3_key, bucket_name)))
+                            st.image(pil_image, caption='', width=800)
+                            # image_zoom(pil_image, size=800, zoom_factor=2.0)
+
+                            # description_text = "\n\n".join(f"{k}: {v}" for k, v in image_item.items() if k not in ['path'])
+                            # st.markdown(description_text)
+
+                            description_text = f'{image_item["Paper"]}, {image_item["Year"]}'
+                            # st.markdown(description_text)
+                            # st.caption(f"Sou: {description_text}")
+                            st.markdown(f"""<span style="color:black;"><b>Source: </b> {description_text}</span>""",
+                                        unsafe_allow_html=True)
+                        except Exception as e:
+                            st.error(f"Could not display image: {image_item}. Error: {str(e)}")
+                else:
+                    st.write("No image context available")
+
+
+def display_dataset(dataset, message_index):
+    print('in display_dataset function')
+    import pandas as pd
+    df = pd.DataFrame.from_dict(dataset)
+    # df = pd.read_json(pd.DataFrame.from_dict(dataset))
+    # df = pd.read_json(dataset)
+    print('DISPLAY DATASET')
+    print(df)
+
+    # st.markdown(msg["content"])
+    st.dataframe(df)
+
+    # Create a CSV from the DataFrame for download
+    csv = df.to_csv(sep="\t", index=False).encode('utf-8')
+
+    # Provide a download button to download the CSV file
+    st.download_button(
+        label="Download dataset as CSV",
+        data=csv,
+        file_name='dataset.csv',
+        mime='text/csv',
+        key=f"download_csv_{message_index}",
+    )
 
     # Display metadata if selected
     # if show_meta:

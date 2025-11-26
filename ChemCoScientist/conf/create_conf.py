@@ -298,24 +298,22 @@ conf = {
                     user receives a **complete, accurate, and concise** response to their query.""",
                 "rules": """Your response must be the **direct and final answer** to the user’s query.
                     - Do **not** describe what was done — instead, **present what was achieved**.  
-                    - Extract and summarize **all key insights, results, and conclusions**.  
+                    - Extract and summarize **all insights, results, and conclusions**. 
+                    - In your response, include every piece of information provided by paper_analysis_agent. 
+                      Ensure the answer is fully comprehensive and no data is overlooked or omitted. 
                     - Avoid unnecessary filler, explanations, or meta-text.  
                     - When appropriate, organize the answer as a **short report** with sections 
-                    such as *Summary*, *Results*, *Findings*, *Conclusion*, etc.  
+                    such as *Summary*, *Results*, *Findings*, *Conclusion*, etc. (They must be in Russian.)  
+                    - The *Results* section must contain all facts provided by the agents
                     - Always ensure your response **directly answers the user’s query**.  
                     - Respond in **markdown** format.
                     - Double-check that your answer is **complete, accurate, and self-contained**.
-                    - In your response, include every piece of information provided by other agents. 
-                      Ensure the answer is fully comprehensive and no data is overlooked or omitted.""",
+                    - You must exclude any non-standard or unreadable symbols (hieroglyphs).""",
 
-                "additional_hints": """                
-                    Never include full file paths — only file names.  
-                    If multiple agents or nodes were involved (e.g., `paper_analysis_agent`, `web_search`), 
-                    summarize their contributions clearly, for example:
-
-                    **paper_analysis:** <summary of paper_analysis_agent result>  
-                    **web_search:** <summary of web_search result>  
+                "additional_hints": """
+                    Never include full file paths — only file names.
                     """,
+
             },
             "replanner": {
                 "problem_statement": """

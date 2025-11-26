@@ -355,7 +355,7 @@ def paper_analysis_agent(state: dict, config: dict) -> Command:
     llm: BaseChatModel = config["configurable"]["llm"]
 
     task = state["task"]
-    task = state["input"]
+    # task = state["input"]
 
     # TODO: update this when proper frontend is added
     try:
@@ -376,10 +376,16 @@ def paper_analysis_agent(state: dict, config: dict) -> Command:
             updated_metadata = state.get("metadata", {}).copy()
             pa_metadata = {"paper_analysis": result.get("metadata")}
             if pa_metadata["paper_analysis"]:
-                updated_metadata.update(pa_metadata)
+                if "paper_analysis" in updated_metadata.keys():
+                    updated_metadata["paper_analysis"].update(pa_metadata["paper_analysis"])
+                else:
+                    updated_metadata.update(pa_metadata)
 
             if type(result["answer"]) is list:
                 result["answer"] = ', '.join(result["answer"])
+
+            print("PAPER AGENT ANSWER")
+            print(result["answer"])
 
             return Command(update={
                 "past_steps": Annotated[set, operator.or_](set([

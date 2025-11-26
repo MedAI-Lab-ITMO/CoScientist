@@ -489,11 +489,9 @@ class ChromaDBPaperStore:
             {"source": {"$in": list(relevant_papers.keys())}},
             self.img_chunk_num,
         )
+        # Get SMILES for molecules and reactions
         for img in image_context["metadatas"][0]:
-            if img.get("molecules") is None or img.get("reactions") is None:
-                image_bytes = load_image_as_binary(img["image_path"])
-                img["molecules"] = str(extract_molecules_from_figure(image_bytes))
-                img["reactions"] = str(extract_reactions_from_figure(image_bytes))
+            self.get_molecule_and_reactions_data(img)
 
         self.client.update_chroma_collection(
             self.img_collection,
@@ -512,18 +510,23 @@ class ChromaDBPaperStore:
 
         return text_context, image_context
 
+    @staticmethod
+    def get_molecule_and_reactions_data(img: dict):
+        if img.get("molecules") is None or img.get("reactions") is None:
+            image_bytes = load_image_as_binary(img["image_path"])
+            img["molecules"] = str(extract_molecules_from_figure(image_bytes))
+            img["reactions"] = str(extract_reactions_from_figure(image_bytes))
 
-    # def get_molecule_data_l(self, file_path: str) -> tuple(str, str): # finish!!!!
-    #     image_data = self.client.query_chromadb(
-    #         self.img_collection,
-    #         [],
-    #         {"path": file_path}
-    #     )
-    #     for img in image_data["metadatas"][0]:
-    #         if img.get("molecules") is None or img.get("reactions") is None:
-    #             image_bytes = load_image_as_binary(img["image_path"])
-    #             img["molecules"] = str(extract_molecules_from_figure(image_bytes))
-    #             img["reactions"] = str(extract_reactions_from_figure(image_bytes))
+    def get_image_data(self, file_path: str) -> dict:
+        image_data = self.client.query_chromadb(
+            self.img_collection,
+            "",
+            {"image_path": file_path}
+        )
+        img = image_data["metadatas"][0][0]
+        self.get_molecule_and_reactions_data(img)
+        # TODO: add data to DB
+        return img
     
     def search_with_reranker(
             self, query: str, initial_results: dict, top_k: int = 1

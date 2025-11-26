@@ -83,6 +83,8 @@ def explore_my_papers(task: str, session_id: str = None) -> dict:
                 return {'answer': 'No papers provided for search.'}
             papers = SELECTED_PAPERS[session_id]
 
+        print(f'PAPERS from explore_my_papers: {papers}')
+
         if MOLECULE_DATA.get(session_id, []):
             print(f'Reading pdf image description from memory')
             img_descriptions = MOLECULE_DATA.get(session_id)
@@ -188,9 +190,13 @@ def create_dataset_from_papers(task: str, session_id: str = None) -> pd.DataFram
                 return {'answer': 'No papers provided for search.'}
             papers = SELECTED_PAPERS[session_id]
 
-        return extract_mols_prop_dataset(VISION_LLM_URL, task, papers)
+        print(f'PAPERS from create_dataset_from_papers: {papers}')
+
+        final_dataset = extract_mols_prop_dataset(VISION_LLM_URL, task, papers)
+        return {'answer': 'This is the retrieved data:',
+                'metadata': {'dataset': final_dataset.to_dict()}}
     except Exception as e:
-        logger.error(f'explore_my_papers ERROR: {e}')
+        logger.error(f'create_dataset_from_papers ERROR: {e}')
         return {'answer': 'Could not extract any data from uploaded papers.'}
 
 paper_analysis_tools = [
