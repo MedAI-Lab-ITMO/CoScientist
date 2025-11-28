@@ -348,7 +348,12 @@ def paper_analysis_agent(state: dict, config: dict) -> Command:
     print("Paper agent called")
     print("Current task:")
     print(state["task"])
+    print("Current input:")
     print(state["input"])
+    print(f'session id: {state.get("user_id")}')
+    # print(f'CONFIG: {config}')
+    # print('session_id')
+    # print(f'session id: {config.get("session_id", "")}')
     print()
     print("--------------------------------")
 
@@ -359,15 +364,18 @@ def paper_analysis_agent(state: dict, config: dict) -> Command:
 
     # TODO: update this when proper frontend is added
     try:
-        current_prompt = f'{paper_agent_prompt}\n session_id = {st.session_state.session_id}'
+        current_prompt = f'{paper_agent_prompt}\n session_id = {state.get("user_id")}'
     except:
         current_prompt = f'{paper_agent_prompt}\nsession_id is not needed in this case, pass None'
+
+    print(f'session id: {state.get("user_id")}')
+    print(f'current prompt: {current_prompt}')
 
     paper_analysis_agent = create_react_agent(
         llm, paper_analysis_tools, state_modifier=current_prompt
     )
 
-    for attempt in range(3):
+    for attempt in range(4):
         try:
             response = paper_analysis_agent.invoke({"messages": [("user", task)]})
 
@@ -436,7 +444,7 @@ def chem_ocr_agent(state: dict, config: dict) -> Command:
 
     # TODO: update this when proper frontend is added
     try:
-        current_prompt = f'{chem_ocr_prompt}\n session_id = {st.session_state.session_id}'
+        current_prompt = f'{chem_ocr_prompt}\n session_id = {state.get("user_id")}'
     except:
         current_prompt = f'{chem_ocr_prompt}\nsession_id is not needed in this case, pass None'
 

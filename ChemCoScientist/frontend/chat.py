@@ -39,6 +39,8 @@ file_handler.setFormatter(formatter)
 logger.addHandler(file_handler)
 
 
+# os.environ.get("ML_TOOLS_IP")
+
 def chat():
     """
     Displays the chat interface and handles user interactions for querying scientific papers.
@@ -100,6 +102,10 @@ def chat():
                 message_index = st.session_state.messages.index(message)
                 display_paper_analysis_metadata(message, message_index)
 
+            if message.get("chem_ocr") and message["role"] == "assistant":
+                message_index = st.session_state.messages.index(message)
+                display_chem_ocr_metadata(message, message_index)
+
     streaming_placeholder = st.empty()
 
     user_text = st.chat_input("Enter a prompt here...", key="chat_input")
@@ -125,7 +131,7 @@ def message_handler(user_query: str, placeholder: st.delta_generator.DeltaGenera
     Returns:
         None
     """
-    user_query = st.session_state.chat_input + " Explore the chemical library to answer this question."
+    user_query = st.session_state.chat_input
 
     try:
         images = st.session_state.images_b64
@@ -180,9 +186,11 @@ def message_handler(user_query: str, placeholder: st.delta_generator.DeltaGenera
                     # st.session_state.messages[-1]["content"] = "Полученный набор данных:"
                     # st.session_state.messages[-1]["dataset"] = result.to_json()
                     inputs['input'] = inputs.get('input', '') + " Only use the files provided by the user to answer " \
-                                                                "the question. You can only use of these tools:" \
+                                                                "the question. You can only use one of these tools:" \
                                                                 "create_dataset_from_papers or explore_my_papers tools " \
-                                                                "from paper_analysis_agent."
+                                                                "from paper_analysis_agent. " \
+                                                                "use create_dataset_from_papers when the user asks to create/collect a dataset," \
+                                                                "use explore_my_papers when the user has a question about chemistry"
                 # else:
                 print('In main graph section')
                 # result = st.session_state.backend.invoke(input=inputs, config=config)
@@ -190,7 +198,7 @@ def message_handler(user_query: str, placeholder: st.delta_generator.DeltaGenera
                     #answers = [{'plan': [['find info'], ['calculate_data', 'get_result']]}, {'response': 'hahaha'}]
                     #for result in answers:
                     # inputs['input'] += " Explore the chemical library to answer this question."  # !!!!!!!!
-                    for result in async_to_sync(st.session_state.backend.stream(inputs, "1")):
+                    for result in async_to_sync(st.session_state.backend.stream(inputs, "1", user_id=st.session_state.session_id)):
                         print("=================new step=================")
                         #print(result)
 
@@ -369,6 +377,13 @@ def message_handler(user_query: str, placeholder: st.delta_generator.DeltaGenera
                         message_index = len(st.session_state.messages) - 1
                         display_paper_analysis_metadata(st.session_state.messages[-1], message_index)
 
+                    if "chem_ocr" in result["metadata"].keys():
+                        print('in chem_ocr section')
+                        st.session_state.messages[-1]["chem_ocr"] = result["metadata"]["chem_ocr"]
+                        # Display the metadata immediately after storing it
+                        message_index = len(st.session_state.messages) - 1
+                        display_chem_ocr_metadata(st.session_state.messages[-1], message_index)
+
                 if mols := msg.get("molecules_vis"):
                     for mol in mols:
                         st.components.v1.html(mol, height=400)
@@ -394,6 +409,25 @@ def message_handler(user_query: str, placeholder: st.delta_generator.DeltaGenera
         logger.exception(
             f"Chat failed with error: {str(e)}\t State: {st.session_state}"
         )
+
+
+def display_chem_ocr_metadata(message, message_index):
+    images = message["chem_ocr"]["annotated_images"]
+    try:
+        # for img_path in images:
+        #     img = Image.open(img_path)
+        #     st.image(img, width=600)
+
+        cols = st.columns(2)  # Create two columns
+
+        for i, img_path in enumerate(images):
+            print(img_path)
+            if 'annotated' in img_path:
+                img = Image.open(img_path)
+                with cols[i % 2]:  # Alternate between the two columns
+                    st.image(img, width=400)
+    except Exception as e:
+        print(f'Could not display image: {img_path}, ERROR: {e}')
 
 
 def display_paper_analysis_metadata(message, message_index):

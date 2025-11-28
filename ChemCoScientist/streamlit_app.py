@@ -19,6 +19,16 @@ if __name__ == "__main__":
     os.makedirs(os.path.join(path, 'imgs'), exist_ok=True)
     os.makedirs(os.path.join(path, 'another'), exist_ok=True)
 
+    import os
+
+    # os.environ["DL_TOOLS_IP"] = "10.32.2.2"
+    # os.environ["DL_TOOLS_PORT"] = "293"
+    #
+    # os.environ["ML_TOOLS_IP"] = "10.64.4.249"
+    # os.environ["ML_TOOLS_PORT"] = "81"
+
+    print(os.environ.get("ML_TOOLS_IP"))
+
     db = JSONFileDB(os.environ.get('MEMORY_DB_PATH', 'ChemCoScientist/data_store/files_db.json'))
 
     start_cleanup_thread()

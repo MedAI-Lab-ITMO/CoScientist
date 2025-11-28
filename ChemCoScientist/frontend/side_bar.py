@@ -327,6 +327,8 @@ def init_backend():
     from ChemCoScientist.conf.create_conf import conf
     conf['configurable']['logger'] = logger
     conf['files_db'] = JSONFileDB(os.environ.get('MEMORY_DB_PATH', 'ChemCoScientist/data_store/files_db.json'))
+    # print(f'setting session id in conf to {st.session_state.session_id}')
+    # conf['session_id'] = st.session_state.session_id
     #st.session_state.backend = GraphBuilder(conf)
     if "backend" not in st.session_state:
         st.session_state.backend = MemoryGraph(config=conf, llm=conf['configurable']['llm'], logger=logger)

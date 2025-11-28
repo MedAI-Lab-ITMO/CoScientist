@@ -143,6 +143,7 @@ additional_agents_description = (
 conf = {
     # maximum number of recursions
     "recursion_limit": 25,
+    # "session_id": None,
     "configurable": {
         "user_id": "1",
         "visual_model": create_llm_connector(os.environ["VISION_LLM_URL"]),
@@ -277,6 +278,7 @@ conf = {
                     - If multiple molecules, files, or entities are processed in the same way, group those actions together as parallel subtasks.
                     - When an earlier step produces data required for another (e.g., training before prediction), make sure the dependent step comes later.
                     - If the user request is ambiguous, infer a reasonable decomposition based on tool capabilities.
+                    - If the user requests molecule or reaction extraction from images call chem_ocr_agent.
                     """,
             },
             "chat": {
@@ -289,7 +291,10 @@ conf = {
                 - perform calculations with chemical python libraries
                 - solve problems of nanomaterial synthesis
                 - analyze chemical articles
+                - extract molecules and reactions from images
                 If user ask something like "What can you do" - make answer yourself!
+                
+                If user asks to extract some data from images do not answer the question yourself, pass it to the planner
                     """,
             },
             "summary": {
