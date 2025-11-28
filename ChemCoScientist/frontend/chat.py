@@ -81,9 +81,9 @@ def chat():
 
             gen_imgs = message.get("images_generated")
 
-            if imgs := message.get("image_urls"):  # render previously submitted images
-                for img in imgs:
-                    st.components.v1.html(convert_to_html(img), height=400)
+            # if imgs := message.get("image_urls"):  # render previously submitted images  # check this!!!!!!!!
+            #     for img in imgs:
+            #         st.components.v1.html(convert_to_html(img), height=400)
 
             if mols := message.get(
                 "molecules_vis"
