@@ -47,54 +47,10 @@ def paper_management():
         session_id = st.session_state.session_id
         selected_papers = SELECTED_PAPERS.get(session_id, [])
 
-        # Top row with master checkboxes and delete button
-        col1, col2, col3, col4 = st.columns([1, 6, 2, 1])
+        # First row with delete button
+        r1_col1, r1_col2, r1_col3 = st.columns([3, 8, 1])
 
-        with col1:
-            # Master checkbox for deletion
-            master_delete = st.checkbox(
-                "Delete All",
-                key="master_delete",
-                help="Select/deselect all papers for deletion",
-                label_visibility="hidden"
-            )
-
-            # Update individual checkboxes based on master checkbox
-            if master_delete != st.session_state.get("prev_master_delete", False):
-                for i in range(len(scientific_papers)):
-                    st.session_state[f"delete_paper_{i}"] = master_delete
-                st.session_state["prev_master_delete"] = master_delete
-                st.rerun()
-
-        with col2:
-            st.write("**Paper Name**")
-
-        with col3:
-            # Master checkbox for analysis
-            master_analysis = st.checkbox(
-                "Select All for Analysis",
-                key="master_analysis",
-                help="Select/deselect all papers for analysis",
-                label_visibility="hidden"
-            )
-
-            # Update individual checkboxes based on master checkbox
-            if master_analysis != st.session_state.get("prev_master_analysis", False):
-
-                for i, paper in enumerate(scientific_papers):
-                    st.session_state[f"process_paper_{i}"] = master_analysis
-                    st.session_state[f"prev_process_paper_{i}"] = master_analysis  # Update previous state tracking
-                    file_path = paper["name"]  # Using filename as file_path
-
-                    # Call backend functions for each paper
-                    if master_analysis:
-                        select_file(file_path)
-                    else:
-                        deselect_file(file_path)
-                st.session_state["prev_master_analysis"] = master_analysis
-                st.rerun()
-
-        with col4:
+        with r1_col3:
             # Small red delete button in upper right
             st.markdown(
                 """
@@ -159,6 +115,54 @@ def paper_management():
                     # logger.info(f'UPLOADED FILES AFTER RERUN: {st.session_state.uploaded_files}')
                 else:
                     st.warning("⚠️ Please select at least one paper to delete.")
+
+        # Second row with master checkboxes and title
+        col1, col2, col3 = st.columns([1, 6, 2])
+
+        with col1:
+            # Master checkbox for deletion
+            master_delete = st.checkbox(
+                "Delete All",
+                key="master_delete",
+                help="Select/deselect all papers for deletion",
+                label_visibility="hidden"
+            )
+
+            # Update individual checkboxes based on master checkbox
+            if master_delete != st.session_state.get("prev_master_delete", False):
+                for i in range(len(scientific_papers)):
+                    st.session_state[f"delete_paper_{i}"] = master_delete
+                st.session_state["prev_master_delete"] = master_delete
+                st.rerun()
+
+        with col2:
+            st.write("**Paper Name**")
+
+        with col3:
+            # Master checkbox for analysis
+            master_analysis = st.checkbox(
+                "Select All for Analysis",
+                key="master_analysis",
+                help="Select/deselect all papers for analysis",
+                label_visibility="hidden"
+            )
+
+            # Update individual checkboxes based on master checkbox
+            if master_analysis != st.session_state.get("prev_master_analysis", False):
+
+                for i, paper in enumerate(scientific_papers):
+                    st.session_state[f"process_paper_{i}"] = master_analysis
+                    st.session_state[f"prev_process_paper_{i}"] = master_analysis  # Update previous state tracking
+                    file_path = paper["name"]  # Using filename as file_path
+
+                    # Call backend functions for each paper
+                    if master_analysis:
+                        select_file(file_path)
+                    else:
+                        deselect_file(file_path)
+                st.session_state["prev_master_analysis"] = master_analysis
+                st.rerun()
+
 
         # st.divider()
 
