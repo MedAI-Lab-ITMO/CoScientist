@@ -109,27 +109,27 @@ def explore_my_papers(task: str, session_id: str = None) -> dict:
         return {'answer': 'Could not extract any data from uploaded papers.'}
 
 
-def paraphrase_query(query: str) -> dict:
-    """
-    Transforms a user's chemistry question into a refined query optimized for finding relevant scientific papers.
-    
-    Args:
-        query (str): The user's initial question about a chemistry topic.
-    
-    Returns:
-        dict: A dictionary containing the paraphrased query as 'answer'. This improved query aims to enhance the accuracy and effectiveness of searches for related research papers.
-    """
-    llm = create_llm_connector(VISION_LLM_URL)
-
-    user_message = {"type": "text", "text": f"USER QUESTION: {query}"}
-
-    messages = [
-        SystemMessage(content=paraphrase_prompt),
-        HumanMessage(content=user_message),
-    ]
-
-    res = llm.invoke(messages)
-    return {'answer': res.content}
+# def paraphrase_query(query: str) -> dict:
+#     """
+#     Transforms a user's chemistry question into a refined query optimized for finding relevant scientific papers.
+#
+#     Args:
+#         query (str): The user's initial question about a chemistry topic.
+#
+#     Returns:
+#         dict: A dictionary containing the paraphrased query as 'answer'. This improved query aims to enhance the accuracy and effectiveness of searches for related research papers.
+#     """
+#     llm = create_llm_connector(VISION_LLM_URL)
+#
+#     user_message = {"type": "text", "text": f"USER QUESTION: {query}"}
+#
+#     messages = [
+#         SystemMessage(content=paraphrase_prompt),
+#         HumanMessage(content=user_message),
+#     ]
+#
+#     res = llm.invoke(messages)
+#     return {'answer': res.content}
 
 
 @tool
@@ -149,7 +149,8 @@ def select_papers(query: str, papers_num: int = 15, final_papers_num: int = 3) -
         print('Running select_papers tool...')
         print(f'query: {query}')
         paper_store = ChromaDBPaperStore()
-        return paper_store.search_for_papers(query, papers_num, final_papers_num)
+        res_papers = paper_store.search_for_papers(query, papers_num, final_papers_num)
+        return {"answer": res_papers}
     except Exception as e:
         logger.error(f'select_papers ERROR: {e}')
         return {'answer': 'Could not find any papers in DB.'}
@@ -192,8 +193,6 @@ def create_dataset_from_papers(task: str, session_id: str = None) -> pd.DataFram
                 return {'answer': 'No papers provided for search.'}
             papers = SELECTED_PAPERS[session_id]
 
-        print(f'PAPERS from create_dataset_from_papers: {papers}')
-
         final_dataset = extract_mols_prop_dataset(VISION_LLM_URL, task, papers)
         return {'answer': 'This is the retrieved data:',
                 'metadata': {'dataset': final_dataset.to_dict()}}
@@ -204,7 +203,7 @@ def create_dataset_from_papers(task: str, session_id: str = None) -> pd.DataFram
 paper_analysis_tools = [
     explore_chemistry_database,
     explore_my_papers,
-    select_papers,
+    # select_papers,
     create_dataset_from_papers
 ]
 

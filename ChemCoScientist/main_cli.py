@@ -38,6 +38,7 @@ inputs = {"input": "Collect a dataset of molecules and their MIC values against 
 # ChemOCR
 graph = GraphBuilder(cc.conf)
 inputs = {"input": "question = 'Extract all molecules from these images.'"}
+inputs = {"input": "Расчетное исследование реакций Дильса-Альдера с участием циклопентадиена предлагает классификацию на три типа в зависимости от полярности. Опишите эти три категории, указав их определяющие характеристики с точки зрения переноса заряда (CT) в переходном состоянии и соответствующие активационные барьеры (ΔE‡)."}
 
 if __name__ == "__main__":
     for step in graph.stream(inputs, user_id="1"):

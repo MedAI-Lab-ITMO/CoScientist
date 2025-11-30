@@ -34,7 +34,7 @@ def init_language():
 
         on_lang = st.selectbox(
             "Select language",
-            placeholder="English",
+            placeholder="Русский",
             key="language",
             options=["English", "Русский"],
         )

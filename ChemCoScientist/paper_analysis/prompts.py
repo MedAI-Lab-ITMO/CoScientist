@@ -39,6 +39,8 @@ Additionally, demonstrate your reasoning process step-by-step when extracting in
 At the end of your response, list the numbers of the text chunks and images you used to formulate your answer.
 ALso include images that are relevant to the query and may offer additional info on the subject.
 Explain how each chunk of text and image is relevant to the query.
+MANDATORY: If you can answer the question using the provided context, you MUST include at least one relevant text chunk 
+or image in relevant_text or relevant_images. Never leave both lists empty when context supports your answer.
 """
     # "answer: answer to the user query"
     # "relevant_text: a list of integers representing the relevant text chunk numbers"

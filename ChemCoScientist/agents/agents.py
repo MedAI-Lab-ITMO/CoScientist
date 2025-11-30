@@ -358,6 +358,7 @@ def paper_analysis_agent(state: dict, config: dict) -> Command:
     print("--------------------------------")
 
     llm: BaseChatModel = config["configurable"]["llm"]
+    print(f'paper agent LLM: {llm}')
 
     task = state["task"]
     # task = state["input"]
@@ -367,9 +368,6 @@ def paper_analysis_agent(state: dict, config: dict) -> Command:
         current_prompt = f'{paper_agent_prompt}\n session_id = {state.get("user_id")}'
     except:
         current_prompt = f'{paper_agent_prompt}\nsession_id is not needed in this case, pass None'
-
-    print(f'session id: {state.get("user_id")}')
-    print(f'current prompt: {current_prompt}')
 
     paper_analysis_agent = create_react_agent(
         llm, paper_analysis_tools, state_modifier=current_prompt

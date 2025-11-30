@@ -490,14 +490,14 @@ class ChromaDBPaperStore:
             self.img_chunk_num,
         )
         # Get SMILES for molecules and reactions
-        for img in image_context["metadatas"][0]:
-            self.get_molecule_and_reactions_data(img)
-
-        self.client.update_chroma_collection(
-            self.img_collection,
-            image_context["ids"][0],
-            image_context["metadatas"][0]
-        )
+        # for img in image_context["metadatas"][0]:
+        #     self.get_molecule_and_reactions_data(img)
+        #
+        # self.client.update_chroma_collection(
+        #     self.img_collection,
+        #     image_context["ids"][0],
+        #     image_context["metadatas"][0]
+        # )
         text_context = self.search_with_reranker(query, raw_text_context, top_k=5)
 
         # Add title and year to metadata

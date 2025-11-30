@@ -237,6 +237,8 @@ conf = {
                     5. Avoid unnecessary decomposition — only split when separate agents are required or there are dependencies.
                     6. Keep logical order and coherence between subtasks.
                     7. You must include all information you see in user prompt to your plan
+                    8. If you get a general question about chemistry first call paper_analysis_agent. Use web search
+                    only if paper_analysis_agent has no answer. 
                     """,
                 "desc_restrictions": """
                     - You cant name agents
