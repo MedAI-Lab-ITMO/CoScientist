@@ -17,26 +17,15 @@ def paper_management():
     Returns:
         None
     """
-    st.header("📁 File Management")
+    if not st.session_state.get("stay_on_files", False):
+        return  # Skip if not on files tab
 
-    # Initialize session state for showing papers
-    # if "show_papers" not in st.session_state:
-    #     st.session_state.show_papers = False
+    st.header("📁 File Management")
 
     # File type selection - small button on the left
     col1, col2, col3 = st.columns([2, 6, 1])
 
-    # with col1:
-    #     if st.button("📄 My Papers", key="my_papers_btn"):
-    #         st.session_state.show_papers = not st.session_state.show_papers
-    #         # st.rerun()
-
-    # st.divider()
-
-    # Display files when papers are selected
-    # if st.session_state.show_papers:
-        # Filter files by type
-    logger.info(f'uploaded papers: {st.session_state.uploaded_papers}')
+    logger.info(f'Uploaded papers: {st.session_state.uploaded_papers}')
     scientific_papers = [f for f in st.session_state.uploaded_papers if
                          f.get("type") in ["application/pdf", "text/plain",
                                            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"]]
@@ -51,7 +40,7 @@ def paper_management():
         r1_col1, r1_col2, r1_col3 = st.columns([3, 8, 1])
 
         with r1_col3:
-            # Small red delete button in upper right
+            # Small delete button in upper right
             st.markdown(
                 """
                 <style>
@@ -74,7 +63,7 @@ def paper_management():
             if st.button("🗑️", help="Delete Selected Papers", type="secondary"):
                 papers_to_delete = []
                 for i, paper in enumerate(scientific_papers):
-                    if st.session_state.get(f"delete_paper_{i}", False):
+                    if st.session_state.get(f"delete_paper_{paper['name']}", False):
                         papers_to_delete.append(paper)
 
                 if papers_to_delete:
@@ -125,15 +114,16 @@ def paper_management():
                 "Delete All",
                 key="master_delete",
                 help="Select/deselect all papers for deletion",
-                label_visibility="hidden"
+                label_visibility="collapsed"
             )
 
             # Update individual checkboxes based on master checkbox
             if master_delete != st.session_state.get("prev_master_delete", False):
-                for i in range(len(scientific_papers)):
-                    st.session_state[f"delete_paper_{i}"] = master_delete
+                # for i in range(len(scientific_papers)):
+                #     st.session_state[f"delete_paper_{i}"] = master_delete
+                st.session_state["master_delete_changed"] = True
                 st.session_state["prev_master_delete"] = master_delete
-                st.rerun()
+                # st.rerun()
 
         with col2:
             st.write("**Paper Name**")
@@ -144,27 +134,44 @@ def paper_management():
                 "Select All for Analysis",
                 key="master_analysis",
                 help="Select/deselect all papers for analysis",
-                label_visibility="hidden"
+                label_visibility="collapsed"
             )
 
             # Update individual checkboxes based on master checkbox
             if master_analysis != st.session_state.get("prev_master_analysis", False):
 
-                for i, paper in enumerate(scientific_papers):
-                    st.session_state[f"process_paper_{i}"] = master_analysis
-                    st.session_state[f"prev_process_paper_{i}"] = master_analysis  # Update previous state tracking
-                    file_path = paper["name"]  # Using filename as file_path
-
-                    # Call backend functions for each paper
-                    if master_analysis:
-                        select_file(file_path)
-                    else:
-                        deselect_file(file_path)
+                # for i, paper in enumerate(scientific_papers):
+                #     st.session_state[f"process_paper_{i}"] = master_analysis
+                #     st.session_state[f"prev_process_paper_{i}"] = master_analysis  # Update previous state tracking
+                #     file_path = paper["name"]  # Using filename as file_path
+                #
+                #     # Call backend functions for each paper
+                #     if master_analysis:
+                #         select_file(file_path)
+                #     else:
+                #         deselect_file(file_path)
+                st.session_state["master_analysis_changed"] = True
                 st.session_state["prev_master_analysis"] = master_analysis
-                st.rerun()
+                # st.rerun()
 
+        # Process master checkbox changes ONCE after all widgets rendered
+        if st.session_state.get("master_delete_changed", False):
+            for paper in scientific_papers:
+                st.session_state[f"delete_paper_{paper['name']}"] = st.session_state["master_delete"]
+            del st.session_state["master_delete_changed"]
+            st.rerun()
 
-        # st.divider()
+        if st.session_state.get("master_analysis_changed", False):
+            for i, paper in enumerate(scientific_papers):
+                st.session_state[f"process_paper_{paper['name']}"] = st.session_state["master_analysis"]
+                st.session_state[f"prev_process_paper_{paper['name']}"] = st.session_state["master_analysis"]
+                file_path = paper["name"]
+                if st.session_state["master_analysis"]:
+                    select_file(file_path)
+                else:
+                    deselect_file(file_path)
+            del st.session_state["master_analysis_changed"]
+            st.rerun()
 
         # Display papers with checkboxes
         logger.info(f'scientific_papers: {scientific_papers}')
@@ -174,10 +181,10 @@ def paper_management():
             with col1:
                 st.checkbox(
                     "Delete",
-                    key=f"delete_paper_{i}",
+                    key=f"delete_paper_{paper['name']}",
                     help="Select to delete this paper",
                     label_visibility="hidden",
-                    value=st.session_state.get(f"delete_paper_{i}", False),
+                    value=st.session_state.get(f"delete_paper_{paper['name']}", False),
                 )
 
             with col2:
@@ -185,14 +192,17 @@ def paper_management():
 
             with col3:
                 # Store previous state in a separate key to track changes
-                prev_state_key = f"prev_process_paper_{i}"
+                print(f'paper var: {paper}')
+                prev_state_key = f"prev_process_paper_{paper['name']}"
                 previous_state = st.session_state.get(prev_state_key, False)
+                print(f'prev_state_key for {paper["name"]}: {previous_state}')
+                # print(f'process_paper_ for {i}: {st.session_state[f"process_paper_{i}"]}')
 
                 is_selected = st.checkbox(
                     "Select for analysis",
-                    key=f"process_paper_{i}",
+                    key=f"process_paper_{paper['name']}",
                     help="Select to process this paper for analysis",
-                    value=st.session_state.get(f"process_paper_{i}", False),
+                    value=st.session_state.get(f"process_paper_{paper['name']}", False),
                 )
 
                 logger.info(f'is file selected: {is_selected}')

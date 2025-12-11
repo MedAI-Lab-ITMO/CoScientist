@@ -143,7 +143,6 @@ additional_agents_description = (
 conf = {
     # maximum number of recursions
     "recursion_limit": 25,
-    # "session_id": None,
     "configurable": {
         "user_id": "1",
         "visual_model": create_llm_connector(os.environ["VISION_LLM_URL"]),

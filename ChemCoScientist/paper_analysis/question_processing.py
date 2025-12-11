@@ -180,34 +180,21 @@ def process_question(question: str, store: ChromaDBPaperStore) -> dict:
 
     ans = query_llm(VISION_LLM_URL, question, txt_context, list(img_paths_list))
 
-    from pprint import pprint
-    pprint(ans)
     # Separate relevant context
     relevant_txt_data = [txt_data[num - 1] for num in ans['relevant_text']]
     relevant_img_context = [img_paths[num - 1] for num in ans['relevant_images']]
 
     for idx, chunk in enumerate(relevant_txt_data, start=1):
-        # keys_to_remove = ['type', 'imgs_in_chunk']
-        # metadata = {k: v for k, v in chunk[2].items() if k not in keys_to_remove}
         relevant_txt_context.append({
             'chunk': f"Chunk {idx}: \n"
                      + chunk[1].replace("passage: ", "")
                      + "\n\n",
             'Source': chunk[2]['source'],
             'Paper': chunk[2]['title'],
-            # 'Header': chunk[2].get('Header 1', ''),
             'Year': chunk[2]['year'],
         })
-        # relevant_txt_context += (
-        #         f"{idx}. Metadata: "
-        #         + str(metadata)
-        #         + "\nChunk: "
-        #         + chunk[1].replace("passage: ", "")
-        #         + "\n\n"
-        # )
 
     return {
-        # "answer": ans,
         "answer": ans['answer'],
         "explanation": ans['explanation'],
         "chunk_explanation": ans.get('chunk_explanation', ''),
@@ -215,7 +202,6 @@ def process_question(question: str, store: ChromaDBPaperStore) -> dict:
         "metadata": {
             "text_context": relevant_txt_context,
             "image_context": relevant_img_context,
-            # "metadata": metadata,
         },
     }
 
@@ -262,29 +248,9 @@ if __name__ == "__main__":
 
     paper_store = ChromaDBPaperStore()
     question = 'What is the title of an article?'
-    # question = 'What components are involved in the synthesis of BASHY dyes, and what are the uses of these dyes?'
+    question = 'What components are involved in the synthesis of BASHY dyes, and what are the uses of these dyes?'
     question = 'What IC50 values do weakly active and highly active Bruton\'s tyrosine kinase inhibitors have?'
-    # question = 'How does the synthesis of Glionitrin A/B happen?'
-    question = 'How does the calculated spin-wave spectrum of Cu₂(OH)₃X vary as the halide (X) is changed from Cl to Br to I, particularly concerning the bandwidth in the interchain direction?'
-    # question = 'Describe the most stable adsorption geometry for a CO molecule on the B₂N nanosheet, including the specific atoms involved in bonding and the resulting structural deformation of the sheet.'  # no answer at all - no data found
-    #question = 'According to thermodynamic analysis, how does increasing the operating pressure of an electrochemical reactor from 1 atm to 250 atm affect both the energy required for gas compression and the electrochemical energy of the redox reaction?'  # image is wrong
-    #question = 'What is the stability of the PEI/ABSA/PSS sensor coating over a one-month storage period in PBS buffer, and what is the likely cause of signal degradation?' # no answe at all
-    #question = 'Compare the limit of detection (LOD) and linear range for S. aureus using the impedimetric method versus the voltammetric method with a secondary antibody.'  # no picture
-    # question = 'How has affinity purification combined with mass spectrometry (AP-MS) advanced the identification of protein complexes, and what are some limitations faced by this approach?'  # wrong picture
-    # question = 'What are the key technological advances in protein-protein interaction (PPI) studies that have enabled genome-wide scale mapping, and how do these methods complement each other?'  # wrong pictures
-    # question = 'When comparing POE and SNE strategies, how does the diversity of generated EcNAGK variants differ in terms of mutation number and location along the protein sequence?'  #good answer but wrong pictures
-    # question = 'In motor designs where a thermal helix inversion (THI) is used, what is the role of the THI step in producing unidirectional rotation for overcrowded-alkene motors, and how does steric design of the rotor/stator enforce directionality?'
-    question = 'Based on time-resolved ¹H and ²³Na ssNMR spectra, how does the rate of water and sodium ion adsorption into AO-PIM-1 membranes change with increasing amidoxime modification?'
-    question = 'What is the typical pore size range for PIM-EA-TB and AO-PIM-1 as derived from CO₂ adsorption isotherms using DFT calculations?'
-    question = 'How does the crystallisation rate of LiCl on the surface of the solar evaporator change as the mass ratio of MgCl₂ to LiCl in the stock solution increases from 1:1 to 10:1?'
-    question = 'What is the effect of increasing the total salt concentration (10 to 80 g/L) in the stock solution on the water evaporation rate and crystallisation rate of LiCl in a solar evaporation system?'
-    question = 'Compare the ionic permeability of GO-PA-based membranes for K+, Na+, Cs+ and Li+ ions as a function of pH. Which ion shows an abnormally high permeability and how does it depend on pH?'
-    # question = 'How does the crystallisation rate of LiCl on the surface of the solar evaporator change as the mass ratio of MgCl₂ to LiCl in the stock solution increases?'
-    # res = simple_query_llm(VISION_LLM_URL, question, [paper])
-    question = 'Сравни ионную проницаемость мембран на основе GO-PA для ионов K+, Na+, Cs+ и Li+ в зависимости от pH. Какой ион проявляет аномально высокую проницаемость и как она зависит от pH?'
-    question = 'Для тирозинкиназы Брутона найди пороговое значение Ic50, чтобы понять, какой лиганд активный, а какой нет'
-    # question = 'What IC50 values do weakly active and highly active Bruton\'s tyrosine kinase inhibitors have?'
-    question = "Классификация отражает влияние полярности на механизм и кинетику реакций Дильса-Альдера: с увеличением переноса заряда в переходном состоянии активационный барьер снижается, что делает реакции более быстрыми и термодинамически благоприятными."
+    question = 'How does the synthesis of Glionitrin A/B happen?'
     result = process_question(question, paper_store)
     from pprint import pprint
     pprint(result)

@@ -127,17 +127,10 @@ def extract_mols_prop_dataset(model_url: str, question: str, pdfs: list) -> pd.D
     Returns:
         pd.DataFrame: A dataset with molecular IDs, SMILES and required properties extracted from provided PDF documents.
     """
-    print(f'PDFS: {pdfs}')
     all_datasets = []
     for pdf in pdfs:
         images = convert_pdf_pages_to_images(pdf)
         results = extract_smiles_from_images(images)
-        # if '187152108785908820' in pdf:
-        #     with open('/Users/lizzy/Downloads/187152108785908820_pages.json', 'r', encoding='utf-8') as f:
-        #         results = json.load(f)
-        # else:
-        #     with open('/Users/lizzy/Downloads/2023.12.si5a.0471.pdf_pages.json', 'r', encoding='utf-8') as f:
-        #         results = json.load(f)
         mols_df = mols_to_csv(results)
         mols_df['id'] = mols_df['id'].astype(str)
         props_df = extract_props(model_url, question, [pdf])
@@ -155,6 +148,5 @@ def extract_mols_prop_dataset(model_url: str, question: str, pdfs: list) -> pd.D
 # if __name__ == "__main__":
 #     pdfs = [r"C:\Users\computer\Documents\GitHub\CoScientist\ChemCoScientist\paper_analysis\papers\187152108785908820.pdf",
 #             r"C:\Users\computer\Documents\GitHub\CoScientist\ChemCoScientist\paper_analysis\papers\ph16040516.pdf"]
-#     pdfs = ['/Users/lizzy/Downloads/187152108785908820.pdf', '/Users/lizzy/Downloads/ph16040516.pdf']
 #     question = "Collect a dataset of molecules and their MIC values against Staphylococcus aureus."
 #     extract_mols_prop_dataset(DATASETS_LLM_URL, question, pdfs)

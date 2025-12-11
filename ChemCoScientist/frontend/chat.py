@@ -1,26 +1,19 @@
+import asyncio
 import glob
 import logging
 import os
-
-import asyncio
-import threading
-from queue import Queue, Empty
-
 import streamlit as st
+import threading
+
 from io import BytesIO
 from langgraph.errors import GraphRecursionError
 from PIL import Image
+from queue import Queue, Empty
 from urllib.parse import urlparse
-
-from streamlit_image_zoom import image_zoom
-from PIL import Image
 
 from definitions import ROOT_DIR
 from ChemCoScientist.frontend.utils import get_user_data_dir, get_user_session_id, save_all_files
 from ChemCoScientist.tools.utils import convert_to_base64, convert_to_html
-# from ChemCoScientist.frontend.streamlit_endpoints import explore_my_papers
-# from ChemCoScientist.tools.paper_analysis_tools import explore_my_papers, create_dataset_from_papers
-from ChemCoScientist.frontend.utils import clean_folder
 from CoScientist.paper_parser.s3_connection import s3_service
 
 # Create a separate logger for chat.py
@@ -39,7 +32,7 @@ file_handler.setFormatter(formatter)
 logger.addHandler(file_handler)
 
 
-# os.environ.get("ML_TOOLS_IP")
+os.environ.get("ML_TOOLS_IP")
 
 def chat():
     """
@@ -70,10 +63,7 @@ def chat():
                         st.markdown(step)
             # st.markdown(message['content'])
 
-            if 'dataset' in message:
-                st.markdown(message["content"])
-                display_dataset(message)
-            elif message.get("automl_results"):
+            if message.get("automl_results"):
                 st.markdown(message["content"])
                 st.markdown(message["automl_results"])
             else:
@@ -81,7 +71,7 @@ def chat():
 
             gen_imgs = message.get("images_generated")
 
-            # if imgs := message.get("image_urls"):  # render previously submitted images  # check this!!!!!!!!
+            # if imgs := message.get("image_urls"):  # render previously submitted images
             #     for img in imgs:
             #         st.components.v1.html(convert_to_html(img), height=400)
 
@@ -103,8 +93,7 @@ def chat():
                 display_paper_analysis_metadata(message, message_index)
 
             if message.get("chem_ocr") and message["role"] == "assistant":
-                message_index = st.session_state.messages.index(message)
-                display_chem_ocr_metadata(message, message_index)
+                display_chem_ocr_metadata(message)
 
     streaming_placeholder = st.empty()
 
@@ -173,34 +162,18 @@ def message_handler(user_query: str, placeholder: st.delta_generator.DeltaGenera
                     steps_container = st.container()
 
                 if st.session_state.explore_mode:
-                    # Use explore_my_papers function instead of general AI assistant
-                    # result = explore_my_papers(inputs.get('input', ''), st.session_state.session_id)
-                    # result = explore_my_papers.invoke({'task': inputs.get('input', ''), 'session_id': st.session_state.session_id})
-
-                    # st.markdown(result["answer"])
-
-                    # st.session_state.messages[-1]["content"] = (result["answer"])
-
-                    # result = create_dataset_from_papers.invoke(
-                    #     {'task': inputs.get('input', ''), 'session_id': st.session_state.session_id})
-                    # st.session_state.messages[-1]["content"] = "Полученный набор данных:"
-                    # st.session_state.messages[-1]["dataset"] = result.to_json()
                     inputs['input'] = inputs.get('input', '') + " Only use the files provided by the user to answer " \
                                                                 "the question. You can only use one of these tools:" \
-                                                                "create_dataset_from_papers or explore_my_papers tools " \
-                                                                "from paper_analysis_agent. " \
-                                                                "use create_dataset_from_papers when the user asks to create/collect a dataset," \
-                                                                "use explore_my_papers when the user has a question about chemistry"
-                # else:
-                print('In main graph section')
-                # result = st.session_state.backend.invoke(input=inputs, config=config)
+                                                                "create_dataset_from_papers or " \
+                                                                "explore_my_papers tools from paper_analysis_agent. " \
+                                                                "use create_dataset_from_papers when the user asks " \
+                                                                "to create/collect a dataset," \
+                                                                "use explore_my_papers when the user has a question " \
+                                                                "about chemistry or about uploaded files/papers"
                 try:
-                    #answers = [{'plan': [['find info'], ['calculate_data', 'get_result']]}, {'response': 'hahaha'}]
-                    #for result in answers:
-                    # inputs['input'] += " Explore the chemical library to answer this question."  # !!!!!!!!
-                    for result in async_to_sync(st.session_state.backend.stream(inputs, "1", user_id=st.session_state.session_id)):
+                    print('In main graph section')
+                    for result in async_to_sync(st.session_state.backend.stream(inputs, "1", user_id="1")):
                         print("=================new step=================")
-                        #print(result)
 
                         if result.get("plan"):
                             plan = result["plan"]
@@ -228,10 +201,10 @@ def message_handler(user_query: str, placeholder: st.delta_generator.DeltaGenera
                                     existing_steps.add(formatted_text)
                                     steps_container.markdown(formatted_text)
 
-                            # with expander_placeholder.container():
-                            #     if st.session_state.messages[-1]['steps']:  # Only render if steps exist
-                            #         for step in st.session_state.messages[-1]['steps']:
-                            #             st.markdown(step)
+                            with expander_placeholder.container():
+                                if st.session_state.messages[-1]['steps']:  # Only render if steps exist
+                                    for step in st.session_state.messages[-1]['steps']:
+                                        st.markdown(step)
 
                         if result.get("past_steps") and not result.get("automl_results"):
                             past_steps = result.get('past_steps')
@@ -246,7 +219,6 @@ def message_handler(user_query: str, placeholder: st.delta_generator.DeltaGenera
                                     ]:  # Only render if steps exist
                                         for step in st.session_state.messages[-1]["steps"]:
                                             st.markdown(step)
-
 
                         elif result.get("automl_results"):
                             text = f"**✅ Result of last step:** Automl is done"
@@ -371,14 +343,12 @@ def message_handler(user_query: str, placeholder: st.delta_generator.DeltaGenera
 
                     # Store metadata in the message for later display
                     if "paper_analysis" in result["metadata"].keys():
-                        print('in paper_analysis section')
                         st.session_state.messages[-1]["paper_analysis"] = result["metadata"]["paper_analysis"]
                         # Display the metadata immediately after storing it
                         message_index = len(st.session_state.messages) - 1
                         display_paper_analysis_metadata(st.session_state.messages[-1], message_index)
 
                     if "chem_ocr" in result["metadata"].keys():
-                        print('in chem_ocr section')
                         st.session_state.messages[-1]["chem_ocr"] = result["metadata"]["chem_ocr"]
                         # Display the metadata immediately after storing it
                         message_index = len(st.session_state.messages) - 1
@@ -411,20 +381,14 @@ def message_handler(user_query: str, placeholder: st.delta_generator.DeltaGenera
         )
 
 
-def display_chem_ocr_metadata(message, message_index):
+def display_chem_ocr_metadata(message):
     images = message["chem_ocr"]["annotated_images"]
     try:
-        # for img_path in images:
-        #     img = Image.open(img_path)
-        #     st.image(img, width=600)
-
-        cols = st.columns(2)  # Create two columns
-
+        cols = st.columns(2)
         for i, img_path in enumerate(images):
-            print(img_path)
             if 'annotated' in img_path:
                 img = Image.open(img_path)
-                with cols[i % 2]:  # Alternate between the two columns
+                with cols[i % 2]:
                     st.image(img, width=400)
     except Exception as e:
         print(f'Could not display image: {img_path}, ERROR: {e}')
@@ -444,8 +408,6 @@ def display_paper_analysis_metadata(message, message_index):
     if "paper_analysis" not in message:
         return
 
-    print('in display_paper_analysis_metadata function')
-
     paper_analysis = message["paper_analysis"]
 
     if "dataset" in paper_analysis.keys():
@@ -454,7 +416,6 @@ def display_paper_analysis_metadata(message, message_index):
     if "text_context" in paper_analysis.keys():
         text_context = paper_analysis.get("text_context")
         images_context = paper_analysis.get("image_context")
-        metadata = paper_analysis.get("metadata")
 
         # Create unique keys for this message's checkboxes
         text_key = f"text_context_{message_index}"
@@ -486,60 +447,27 @@ def display_paper_analysis_metadata(message, message_index):
                 key=images_key
             )
 
-        # with col3:
-        #     show_meta = st.checkbox(
-        #         "ℹ️ Metadata",
-        #         value=st.session_state[meta_key],
-        #         key=meta_key
-        #     )
-
         # Display text context if selected
         if show_text:
             with st.expander("📄 Text Context", expanded=True):
                 for text in text_context:
                     st.text_area(f'Text Context:', value=text['chunk'], height=350, disabled=True)
-                    description_text = "\n\n".join(f"{k}: {v}" for k, v in text.items() if k not in ['chunk'])
                     description_text = f'{text["Paper"]}, {text["Year"]}'
-                    # st.markdown(description_text)
-                    # st.caption(f"Sou: {description_text}")
                     st.markdown(f"""<span style="color:black;"><b>Source: </b> {description_text}</span>""",
                                 unsafe_allow_html=True)
-
-                    # st.text_area("Source: ", value=description_text, height=150, disabled=True)
-                    # st.markdown(f'<span style="color:black;"><b>Metadata:</b></span>', unsafe_allow_html=True)
-                    # st.text_area(f'<span style="color:black;"><b>Source:</b></span>', value=description_text, height=150, disabled=True)
-                    # st.divider()
 
         # Display image context if selected
         if show_images:
             with st.expander("🖼️ Image Context", expanded=True):
                 if images_context:
                     for i, image_item in enumerate(images_context):
-                        img_key = f"img_checkbox_{message_index}_{i}"
                         bucket_name, s3_key = urlparse(image_item['path']).path.split('/', 2)[1:]
-
-                        # Initialize image checkbox state if not present
-                        # if img_key not in st.session_state:
-                        #     st.session_state[img_key] = False
-
-                        # show_img = st.checkbox(
-                        #     f'{bucket_name}/{s3_key}',
-                        #     value=st.session_state[img_key],
-                        #     key=img_key
-                        # )
 
                         # Display image if selected
                         try:
                             pil_image = Image.open(BytesIO(s3_service.get_image_bytes_from_s3(s3_key, bucket_name)))
                             st.image(pil_image, caption='', width=800)
-                            # image_zoom(pil_image, size=800, zoom_factor=2.0)
-
-                            # description_text = "\n\n".join(f"{k}: {v}" for k, v in image_item.items() if k not in ['path'])
-                            # st.markdown(description_text)
-
                             description_text = f'{image_item["Paper"]}, {image_item["Year"]}'
-                            # st.markdown(description_text)
-                            # st.caption(f"Sou: {description_text}")
                             st.markdown(f"""<span style="color:black;"><b>Source: </b> {description_text}</span>""",
                                         unsafe_allow_html=True)
                         except Exception as e:
@@ -549,15 +477,9 @@ def display_paper_analysis_metadata(message, message_index):
 
 
 def display_dataset(dataset, message_index):
-    print('in display_dataset function')
     import pandas as pd
     df = pd.DataFrame.from_dict(dataset)
-    # df = pd.read_json(pd.DataFrame.from_dict(dataset))
-    # df = pd.read_json(dataset)
-    print('DISPLAY DATASET')
-    print(df)
 
-    # st.markdown(msg["content"])
     st.dataframe(df)
 
     # Create a CSV from the DataFrame for download
@@ -571,16 +493,6 @@ def display_dataset(dataset, message_index):
         mime='text/csv',
         key=f"download_csv_{message_index}",
     )
-
-    # Display metadata if selected
-    # if show_meta:
-    #     with st.expander("ℹ️ Metadata", expanded=True):
-    #         if metadata:
-    #             for key, value in metadata.items():
-    #                 st.write(f"**{key}:** {value}")
-    #         else:
-    #             st.write("No metadata available")
-
 
 
 def async_to_sync(async_gen):

@@ -109,27 +109,27 @@ def explore_my_papers(task: str, session_id: str = None) -> dict:
         return {'answer': 'Could not extract any data from uploaded papers.'}
 
 
-# def paraphrase_query(query: str) -> dict:
-#     """
-#     Transforms a user's chemistry question into a refined query optimized for finding relevant scientific papers.
-#
-#     Args:
-#         query (str): The user's initial question about a chemistry topic.
-#
-#     Returns:
-#         dict: A dictionary containing the paraphrased query as 'answer'. This improved query aims to enhance the accuracy and effectiveness of searches for related research papers.
-#     """
-#     llm = create_llm_connector(VISION_LLM_URL)
-#
-#     user_message = {"type": "text", "text": f"USER QUESTION: {query}"}
-#
-#     messages = [
-#         SystemMessage(content=paraphrase_prompt),
-#         HumanMessage(content=user_message),
-#     ]
-#
-#     res = llm.invoke(messages)
-#     return {'answer': res.content}
+def paraphrase_query(query: str) -> dict:
+    """
+    Transforms a user's chemistry question into a refined query optimized for finding relevant scientific papers.
+
+    Args:
+        query (str): The user's initial question about a chemistry topic.
+
+    Returns:
+        dict: A dictionary containing the paraphrased query as 'answer'. This improved query aims to enhance the accuracy and effectiveness of searches for related research papers.
+    """
+    llm = create_llm_connector(VISION_LLM_URL)
+
+    user_message = {"type": "text", "text": f"USER QUESTION: {query}"}
+
+    messages = [
+        SystemMessage(content=paraphrase_prompt),
+        HumanMessage(content=user_message),
+    ]
+
+    res = llm.invoke(messages)
+    return {'answer': res.content}
 
 
 @tool
@@ -178,8 +178,6 @@ def create_dataset_from_papers(task: str, session_id: str = None) -> pd.DataFram
     """
     print('Running create_dataset_from_papers tool...')
     print(f'task: {task}')
-    print(f'selected papers: {SELECTED_PAPERS}')
-    print(f'session id: {session_id}')
     try:
         # TODO: remove when proper frontend is added
         if not SELECTED_PAPERS:

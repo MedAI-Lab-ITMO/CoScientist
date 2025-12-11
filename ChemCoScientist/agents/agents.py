@@ -346,26 +346,17 @@ def paper_analysis_agent(state: dict, config: dict) -> Command:
     """
     print("--------------------------------")
     print("Paper agent called")
-    print("Current task:")
-    print(state["task"])
-    print("Current input:")
-    print(state["input"])
-    print(f'session id: {state.get("user_id")}')
-    # print(f'CONFIG: {config}')
-    # print('session_id')
-    # print(f'session id: {config.get("session_id", "")}')
-    print()
+    print(f"Current task: {state['task']}")
+    print(f"Current input: {state['input']}")
     print("--------------------------------")
 
     llm: BaseChatModel = config["configurable"]["llm"]
-    print(f'paper agent LLM: {llm}')
 
     task = state["task"]
-    # task = state["input"]
 
     # TODO: update this when proper frontend is added
     try:
-        current_prompt = f'{paper_agent_prompt}\n session_id = {state.get("user_id")}'
+        current_prompt = f'{paper_agent_prompt}\n session_id = {config["configurable"]["session_id"]}'
     except:
         current_prompt = f'{paper_agent_prompt}\nsession_id is not needed in this case, pass None'
 
@@ -373,10 +364,12 @@ def paper_analysis_agent(state: dict, config: dict) -> Command:
         llm, paper_analysis_tools, state_modifier=current_prompt
     )
 
-    for attempt in range(4):
+    for attempt in range(3):
         try:
             response = paper_analysis_agent.invoke({"messages": [("user", task)]})
 
+            from pprint import pprint
+            pprint(response)
             result = ast.literal_eval(response["messages"][2].content)
 
             updated_metadata = state.get("metadata", {}).copy()
@@ -389,9 +382,6 @@ def paper_analysis_agent(state: dict, config: dict) -> Command:
 
             if type(result["answer"]) is list:
                 result["answer"] = ', '.join(result["answer"])
-
-            print("PAPER AGENT ANSWER")
-            print(result["answer"])
 
             return Command(update={
                 "past_steps": Annotated[set, operator.or_](set([
@@ -442,7 +432,7 @@ def chem_ocr_agent(state: dict, config: dict) -> Command:
 
     # TODO: update this when proper frontend is added
     try:
-        current_prompt = f'{chem_ocr_prompt}\n session_id = {state.get("user_id")}'
+        current_prompt = f'{chem_ocr_prompt}\n session_id = {config["configurable"]["session_id"]}'
     except:
         current_prompt = f'{chem_ocr_prompt}\nsession_id is not needed in this case, pass None'
 
