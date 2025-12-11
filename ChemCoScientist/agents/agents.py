@@ -368,8 +368,6 @@ def paper_analysis_agent(state: dict, config: dict) -> Command:
         try:
             response = paper_analysis_agent.invoke({"messages": [("user", task)]})
 
-            from pprint import pprint
-            pprint(response)
             result = ast.literal_eval(response["messages"][2].content)
 
             updated_metadata = state.get("metadata", {}).copy()

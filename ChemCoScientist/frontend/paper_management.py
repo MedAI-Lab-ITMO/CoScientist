@@ -17,9 +17,6 @@ def paper_management():
     Returns:
         None
     """
-    if not st.session_state.get("stay_on_files", False):
-        return  # Skip if not on files tab
-
     st.header("📁 File Management")
 
     # File type selection - small button on the left
