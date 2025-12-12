@@ -247,7 +247,8 @@ class MemoryGraph(HybridMemoryManager):
         self.graph = GraphBuilder(config)
         self.k = k
 
-    async def stream(self, inputs: dict, image_path: str = "", user_id: str = "1") -> AsyncGenerator[Dict[str, Any], None]:
+    async def stream(self, inputs: dict, image_path: str = "", user_id: str = "1") -> \
+            AsyncGenerator[Dict[str, Any], None]:
         user_text = inputs.get('input')
         if not user_text:
             raise ValueError(f"Inputs must have key 'input': {inputs}")
