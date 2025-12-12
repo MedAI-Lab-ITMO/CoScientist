@@ -6,7 +6,7 @@ from ChemCoScientist.frontend.paper_management import paper_management
 from ChemCoScientist.frontend.dataset_management import dataset_management
 from ChemCoScientist.frontend.utils import start_cleanup_thread
 from ChemCoScientist.memory.json_db import JSONFileDB
-from definitions import CONFIG_PATH
+from definitions import ROOT_DIR, CONFIG_PATH
 
 load_dotenv(CONFIG_PATH)
 
@@ -14,7 +14,7 @@ import os
 
 if __name__ == "__main__":
 
-    path = '/app/ChemCoScientist/data_store'
+    path = f'{ROOT_DIR}/app/ChemCoScientist/data_store'
     os.makedirs(os.path.join(path, 'datasets'), exist_ok=True)
     os.makedirs(os.path.join(path, 'imgs'), exist_ok=True)
     os.makedirs(os.path.join(path, 'another'), exist_ok=True)
@@ -36,4 +36,3 @@ if __name__ == "__main__":
         paper_management()
     with tab_datasets:
         dataset_management(db)
-
