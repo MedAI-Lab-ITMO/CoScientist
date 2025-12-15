@@ -82,3 +82,16 @@ def convert_image_to_smiles(image: bytes) -> str:
     """
     response = requests.post(f"{OPENCHEMIE_URL}/convert_image_to_smiles/", files={"image": image})
     return response.json()["data"]
+
+
+def remove_keys(obj, keys_to_remove={"bbox", "score"}):
+    """Processes OpenChemIE json output to remove unnecessary keys like 'score' and 'bbox'."""
+    if isinstance(obj, dict):
+        for k in keys_to_remove:
+            obj.pop(k, None)
+        for v in obj.values():
+            remove_keys(v, keys_to_remove)
+    elif isinstance(obj, list):
+        for item in obj:
+            remove_keys(item, keys_to_remove)
+    return obj
