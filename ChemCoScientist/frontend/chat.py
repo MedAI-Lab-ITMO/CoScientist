@@ -74,6 +74,25 @@ def chat():
             else:
                 st.markdown(message["content"])
 
+            if message.get('found_pubmed_papers'):
+                papers = message.get('found_pubmed_papers')
+                st.subheader("Список найденных статей:")
+
+                for idx, paper in enumerate(papers):
+                    with st.expander(
+                        f"{idx+1}. {paper.title}", expanded=False
+                    ):
+
+                        authors = ', '.join(paper.authors)
+                        st.markdown(f"**Авторы:** {authors}")
+                        st.markdown(f"**Год:** {paper.year}")
+                        st.markdown(f"**Журнал:** {paper.journal}")
+                        st.markdown(f"**Аннотация:** {paper.abstract}")
+                        
+                        if paper.link:
+                            st.markdown(f"[Перейти к статье]({paper.link})")
+
+
             gen_imgs = message.get("images_generated")
 
             # if imgs := message.get("image_urls"):  # render previously submitted images
@@ -251,6 +270,9 @@ def message_handler(user_query: str, placeholder: st.delta_generator.DeltaGenera
                     result["response"] = (
                         "Something went wrong. Please reload the page, initialize models and try again. If this happens again, check your base url and api key"
                     )
+                # st.session_state.messages.append({'role': 'assistant', "content": result['response']})
+                if result.get('found_pubmed_papers'):
+                    st.session_state.messages[-1]["found_pubmed_papers"] = result.get('found_pubmed_papers')
 
                 # st.session_state.messages.append({'role': 'assistant', "content": result['response']})
                 st.session_state.messages[-1]["content"] = result["response"]
@@ -311,6 +333,34 @@ def message_handler(user_query: str, placeholder: st.delta_generator.DeltaGenera
                     st.markdown(msg["automl_results"])
                 else:
                     st.markdown(msg["content"])
+
+                if result.get('metadata'):
+                    
+                    papers = result['metadata']
+                    print(papers)
+
+                    paper_key = 'found_papers_' + user_query
+
+                    if papers.get(paper_key):
+                        st.subheader("Список найденных статей:")
+
+                    st.session_state.messages[-1]['found_pubmed_papers'] = []
+
+                    for idx, paper in enumerate(papers.get(paper_key, [])):
+                        with st.expander(
+                            f"{idx+1}. {paper.title}", expanded=False
+                        ):
+
+                            authors = ', '.join(paper.authors)
+                            st.markdown(f"**Авторы:** {authors}")
+                            st.markdown(f"**Год:** {paper.year}")
+                            st.markdown(f"**Журнал:** {paper.journal}")
+                            st.markdown(f"**Аннотация:** {paper.abstract}")
+
+                            if paper.link:
+                                st.markdown(f"[Перейти к статье]({paper.link})")
+
+                            st.session_state.messages[-1]['found_pubmed_papers'].append(paper)
 
                 # ATTENTION: RENDER IMG FOR USER
                 if imgs := msg.get("image_urls"):
