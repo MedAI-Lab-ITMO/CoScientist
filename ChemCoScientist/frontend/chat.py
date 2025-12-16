@@ -2,11 +2,6 @@ import asyncio
 import glob
 import logging
 import os
-
-import asyncio
-import threading
-from queue import Queue, Empty
-
 import streamlit as st
 import threading
 
@@ -529,6 +524,24 @@ def display_paper_analysis_metadata(message, message_index):
                 else:
                     st.write("No image context available")
 
+
+def display_dataset(dataset, message_index):
+    import pandas as pd
+    df = pd.DataFrame.from_dict(dataset)
+
+    st.dataframe(df)
+
+    # Create a CSV from the DataFrame for download
+    csv = df.to_csv(sep="\t", index=False).encode('utf-8')
+
+    # Provide a download button to download the CSV file
+    st.download_button(
+        label="Download dataset as CSV",
+        data=csv,
+        file_name='dataset.csv',
+        mime='text/csv',
+        key=f"download_csv_{message_index}",
+    )
 
 def display_dataset(dataset, message_index):
     import pandas as pd
