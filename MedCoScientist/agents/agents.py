@@ -59,9 +59,8 @@ def hypothesis_pico_agent(state: dict, config: dict) -> Command:
     arg = (argument_extraction_prompt | llm).invoke({"prompt": task}).content
     pico: str = extract_pico_node(arg, llm)
 
-    return Command(goto=END, update={
-        "response": pico
-                    + "Can I help with something else?"
+    return Command(update={
+        "past_steps": Annotated[set, operator.or_](set([(task, pico)]))
     })
     
 
@@ -80,14 +79,18 @@ def related_pubmed_literature_agent(state: dict, config: dict) -> Command:
         Command: A command object containing the agent's textual response, the updated task history (`past_steps`) including the current task and response,
             and a record of the agent call (`nodes_calls`) detailing the agent used and its input/output.
     """
+    user_input = state['input']
     task = state["task"]
     plan = state["plan"]
+    paper_key = 'found_papers_' + user_input
+
     llm: BaseChatModel = config["configurable"]["model"]
     arg = (argument_extraction_prompt | llm).invoke({"prompt": task}).content
     keywords = extract_keywords_node(arg, llm)[:2]
 
     papers = query_pubmed_node(keywords)
-    return Command(goto=END, update={
-        "response": papers
-                    + "Can I help with something else?"
+    result = papers if isinstance(papers, str) else f'I have found {len(papers)} related papers for this task. Here are the titles: {'\n'.join([f'{i+1}. {paper.title}' for i, paper in enumerate(papers)])}'
+    return Command(update={
+        "past_steps": Annotated[set, operator.or_](set([(task, result)])),
+        'metadata': Annotated[dict, operator.or_]({paper_key: papers}) 
     })

@@ -3,6 +3,7 @@ import time
 from Bio import Entrez
 from dataclasses import dataclass
 from typing import List
+import os
 
 
 from langchain.tools.render import render_text_description
@@ -114,7 +115,7 @@ def query_pubmed_node(keywords: str) -> str:
     try:
         query = _create_pubmed_query(keywords)
         max_results: int = 10
-        Entrez.email = "medailabitmo@gmail.com"
+        Entrez.email = os.environ.get('ENTREZ_EMAIL', 'medailabitmo@gmail.com')
         handle = Entrez.esearch(db="pubmed", term=query, retmax=max_results)
         record = Entrez.read(handle)
         handle.close()
@@ -129,7 +130,8 @@ def query_pubmed_node(keywords: str) -> str:
         articles_xml = Entrez.read(fetch_handle)
         fetch_handle.close()
         pubmed_articles = _parse_pubmed_articles(articles_xml)
-        return json.dumps(pubmed_articles, cls=PubMedArticleEncoder, indent=2)
+        return pubmed_articles
+        #return json.dumps(pubmed_articles, cls=PubMedArticleEncoder, indent=2)
     except Exception as e:
         return f"I couldn't extract keywords because of: {str(e)}, I should move to the next task if any"
 
