@@ -271,10 +271,10 @@ def message_handler(user_query: str, placeholder: st.delta_generator.DeltaGenera
                         "Something went wrong. Please reload the page, initialize models and try again. If this happens again, check your base url and api key"
                     )
 
-                    # st.session_state.messages.append({'role': 'assistant', "content": result['response']})
-                    st.session_state.messages[-1]["content"] = result["response"]
-                    if result.get('found_pubmed_papers'):
-                        st.session_state.messages[-1]["found_pubmed_papers"] = result.get('found_pubmed_papers')
+                # st.session_state.messages.append({'role': 'assistant', "content": result['response']})
+                st.session_state.messages[-1]["content"] = result["response"]
+                if result.get('found_pubmed_papers'):
+                    st.session_state.messages[-1]["found_pubmed_papers"] = result.get('found_pubmed_papers')
 
                 # clean_folder(os.path.join(ROOT_DIR, os.environ["DS_STORAGE_PATH"]))
                 # clean_folder(os.path.join(ROOT_DIR, os.environ["IMG_STORAGE_PATH"]))
