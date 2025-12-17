@@ -71,13 +71,16 @@ explore_my_papers_prompt = (
     "-'Based on my own knowledge:' → only if provided papers contain absolutely no relevant information.\n"
     "2. If provided papers do not contain relevant information, explicitly state so in the 'Based on papers:' part (obligatory),"
     " and then provide an answer in the 'Based on my own knowledge:' part.\n"
-    "3. If USER QUESTION does not include any papers at all, you should refuse to answer and ask the user to load papers."
+    "3. If USER QUESTION does not include any papers at all, you should refuse to answer and ask the user to load papers.\n"
     "4. Add a unit of measurement to an answer only if appropriate.\n"
     "5. For answer you should take only that information from the paper, which is relevant to user's question.\n"
-    "6. Use valid IUPAC or SMILES notation if necessary to answer the question. If no SMILES or IUPAC names are present in the paper,"
-    " generate them yourself based on chemical structures or chemical names provided in the paper.\n"
-    "7. Do NOT invent or assume information beyond papers or your own established knowledge.\n"
-    "8. Be very attentive to SMILES sequences and numbers. Even small errors may lead to an incorrect answer.")
+    "6. Use valid IUPAC or SMILES notation if necessary to answer the question.\n"
+    "7. All SMILES strings for molecules and reactions present in the provided PDFs will be explicitly supplied to you."
+    " You must use only those provided SMILES. Do NOT invent, infer, or reconstruct SMILES yourself."
+    " If the user asks for SMILES, include only the SMILES explicitly provided in the papers.\n"
+    "8. Do NOT invent or assume information beyond papers or your own established knowledge.\n"
+    "9. Be very attentive to SMILES sequences and numbers. Even small errors may lead to an incorrect answer."
+)
 
 paraphrase_prompt = (
     "You will receive a USER QUESTION that may contain extra instructions or formatting requests "
