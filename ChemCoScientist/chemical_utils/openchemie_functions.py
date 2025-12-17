@@ -1,5 +1,5 @@
 import requests
-from typing import List, Dict
+from typing import List, Dict, Any
 from dotenv import load_dotenv
 import os
 from definitions import CONFIG_PATH
@@ -84,7 +84,7 @@ def convert_image_to_smiles(image: bytes) -> str:
     return response.json()["data"]
 
 
-def remove_keys(obj, keys_to_remove={"bbox", "score"}):
+def remove_keys(obj: Any, keys_to_remove: set[str] = {"bbox", "score"}) -> Any:
     """Processes OpenChemIE json output to remove unnecessary keys like 'score' and 'bbox'."""
     if isinstance(obj, dict):
         for k in keys_to_remove:
