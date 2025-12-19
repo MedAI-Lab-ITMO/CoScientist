@@ -104,7 +104,6 @@ def explore_my_papers(task: str, session_id: str = "1") -> dict:
                     img_descriptions += f'Molecules: {str(detected_molecules)}\n'
                 img_descriptions += '\n\n'
             MOLECULE_DATA[session_id] = img_descriptions
-            
         return simple_query_llm(VISION_LLM_URL, task, papers, img_descriptions)
     except Exception as e:
         logger.error(f'explore_my_papers ERROR: {e}')
