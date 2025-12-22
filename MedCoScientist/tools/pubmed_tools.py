@@ -131,7 +131,7 @@ def query_pubmed_node(keywords: str) -> str:
         fetch_handle.close()
         pubmed_articles = _parse_pubmed_articles(articles_xml)
         return pubmed_articles
-        #return json.dumps(pubmed_articles, cls=PubMedArticleEncoder, indent=2)
+        return json.dumps(pubmed_articles, cls=PubMedArticleEncoder, indent=2)
     except Exception as e:
         return f"I couldn't extract keywords because of: {str(e)}, I should move to the next task if any"
 

@@ -1,7 +1,8 @@
 import ast
+import json
 import os
 import time
-from typing import Annotated
+from typing import Annotated, List
 import operator
 import streamlit as st
 from langchain_core.language_models import BaseChatModel
@@ -12,6 +13,7 @@ from langgraph.graph import END
 
 from MedCoScientist.agents.agents_prompts import worker_prompt, argument_extraction_prompt
 from MedCoScientist.tools import extract_pico_node, extract_keywords_node, query_pubmed_node
+from MedCoScientist.tools.pubmed_tools import PubMedArticle, PubMedArticleEncoder
 
 
 def get_all_files(directory: str):
@@ -85,12 +87,17 @@ def related_pubmed_literature_agent(state: dict, config: dict) -> Command:
     paper_key = 'found_papers_' + user_input
 
     llm: BaseChatModel = config["configurable"]["model"]
-    arg = (argument_extraction_prompt | llm).invoke({"prompt": task}).content
-    keywords = extract_keywords_node(arg, llm)[:2]
+    # arg = (argument_extraction_prompt | llm).invoke({"prompt": task}).content
+    # embedder_config = config["configurable"]["embedder"]
+    # keywords = extract_keywords_node(arg, llm, embedder_config)
+    keywords = 'reperfusion therapy, post-thrombotic syndrome'
 
-    papers = query_pubmed_node(keywords)
-    result = papers if isinstance(papers, str) else f'I have found {len(papers)} related papers for this task. Here are the titles: {'\n'.join([f'{i+1}. {paper.title}' for i, paper in enumerate(papers)])}'
+    papers: List[PubMedArticle] = query_pubmed_node(keywords)
+    for paper in papers:
+        paper.abstract = extract_pico_node(paper.abstract, llm)
+
+    result = json.dumps(papers, cls=PubMedArticleEncoder, indent=2, ensure_ascii=False)
     return Command(update={
         "past_steps": Annotated[set, operator.or_](set([(task, result)])),
-        'metadata': Annotated[dict, operator.or_]({paper_key: papers}) 
+        'metadata': Annotated[dict, operator.or_]({paper_key: result}) 
     })

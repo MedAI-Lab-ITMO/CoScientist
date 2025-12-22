@@ -11,7 +11,7 @@ import MedCoScientist.conf.create_conf as cc
 
 # inputs = {"input": "What is the capital of France?"}
 # inputs = {"input": "I would like to get PICO decomposition of the following hypothesis: Реперфузионное лечение у пациентов с тромбоэмболией легочной артерии высокого и промежуточного риска тридцатидневной летальности снижает риск развития посттромбоэмболического синдрома"}
-inputs = {"input": "I would like to find relevant PubMed papers for the following hypothesis: Reperfusion therapy in patients with pulmonary embolism at high and intermediate risk of thirty-day mortality reduces the risk of developing post-thromboembolic syndrome."}
+inputs = {"input": "I would like to find relevant PubMed papers for the following hypothesis: Reperfusion therapy in patients with pulmonary embolism at high and intermediate risk of thirty-day mortality reduces the risk of developing post-thrombotic syndrome."}
 
 # Paper analysis
 graph = GraphBuilder(cc.conf)
