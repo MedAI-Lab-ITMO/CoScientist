@@ -13,7 +13,7 @@ from langchain_core.language_models.chat_models import BaseChatModel
 from protollm.agents.builder import GraphBuilder
 from langchain_core.messages import AIMessage
 import asyncio
-
+from ChemCoScientist.utils import measure_time
 
 #from dotenv import load_dotenv 
 #load_dotenv('/app/config.env')
@@ -97,6 +97,7 @@ embedding_endpoint = "/embed"
 class CustomEmbeddings(Embeddings):
 
     @staticmethod
+    @measure_time
     def get_embeddings(texts: List[str]) -> List[np.ndarray]:
         """
         Retrieves numerical representations of text for semantic understanding and comparison.
@@ -185,6 +186,7 @@ class HybridMemoryManager:
         """Return short recent dialogue context"""
         return "\n".join([f"{m['role']}: {m['content']}" for m in self.short_memory])
     
+    @measure_time
     def retrieve_semantic_context(self, query: str, k: int = 3, similarity_threshold: float = 0.4) -> List[str]:
         """Semantic retrieval from FAISS store"""
         # results = self.vectorstore.similarity_search(query, k=k)
@@ -195,6 +197,7 @@ class HybridMemoryManager:
         filtered_results = [doc for doc, score in results if score >= similarity_threshold]
         return [(r.metadata['role'], r.page_content) for r in filtered_results]
 
+    @measure_time
     def resolve_message(self, user_input: str, k: int = 3, similarity_threshold: float = 0.4) -> str:
         """
         Hybrid resolver:

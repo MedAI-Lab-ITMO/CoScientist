@@ -21,6 +21,7 @@ from ChemCoScientist.agents.agents_prompts import (
 )
 from ChemCoScientist.tools import chem_tools, nanoparticle_tools, paper_analysis_tools, data_tools, chem_ocr_tools
 from ChemCoScientist.tools.ml_tools import agents_tools as automl_tools
+from ChemCoScientist.utils import measure_time
 
 from ChemCoScientist.agents.agents_prompts import paper_agent_prompt, coder_prompt
 from definitions import ROOT_DIR
@@ -48,7 +49,7 @@ def get_all_files(directory: str):
     return file_paths
 
 
-
+@measure_time
 def dataset_builder_agent(state: dict, config: dict):
 
     task = state["task"]
@@ -95,6 +96,7 @@ def dataset_builder_agent(state: dict, config: dict):
         }),
     })
 
+@measure_time
 def coder_agent(state: dict, config: dict):
 
     task = state["task"]
@@ -151,7 +153,7 @@ def coder_agent(state: dict, config: dict):
         ])),
     })
 
-
+@measure_time
 def ml_dl_agent(state: dict, config: dict) -> Command:
     """
     Executes a machine learning/deep learning agent to address a given task, leveraging a large language model.
@@ -210,7 +212,7 @@ def ml_dl_agent(state: dict, config: dict) -> Command:
         ])),
     })
 
-
+@measure_time
 def chemist_node(state: dict, config: dict) -> Command:
     """
     Executes a chemistry-related task using a language model and specialized tools.
@@ -268,7 +270,7 @@ def chemist_node(state: dict, config: dict) -> Command:
         "response": "I can't answer your question right now. Perhaps I can help with something else?"
     })
 
-
+@measure_time
 def nanoparticle_node(state: dict, config: dict) -> Command:
     """
     Executes a task using a nanoparticle agent and returns a Command object.
@@ -328,7 +330,7 @@ def nanoparticle_node(state: dict, config: dict) -> Command:
         "response": "I can't answer your question right now. Perhaps I can help with something else?"
     })
 
-
+@measure_time
 def paper_analysis_agent(state: dict, config: dict) -> Command:
     """
     Analyzes scientific papers to answer user questions.
@@ -399,7 +401,7 @@ def paper_analysis_agent(state: dict, config: dict) -> Command:
                     "Can I help with something else?"
     })
     
-
+@measure_time
 def chem_ocr_agent(state: dict, config: dict) -> Command:
     """
     Extracts molecular structures and reaction information from images.

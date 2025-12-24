@@ -102,7 +102,7 @@ def chat():
         st.session_state.messages.append({"role": "user", "content": user_text})
         message_handler(user_text, streaming_placeholder)
         # When finished, force rerun so chat history + input re-render in correct order
-        st.rerun()
+       #st.rerun()
 
 
 def message_handler(user_query: str, placeholder: st.delta_generator.DeltaGenerator):
