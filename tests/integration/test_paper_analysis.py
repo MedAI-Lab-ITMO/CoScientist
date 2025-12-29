@@ -116,7 +116,7 @@ class TestPaperAnalysis:
         img_collection = client.get_or_create_chroma_collection(collection_names["img"])
         assert sum_collection.count() == 1
         assert txt_collection.count() == 9
-        assert img_collection.count() >= 9
+        assert img_collection.count() > 9
         assert not os.listdir(PARSE_RESULTS_PATH)
     
     def test_03_query(self,
@@ -134,7 +134,7 @@ class TestPaperAnalysis:
             assert field in meta
             assert meta[field] not in (None, "", [], {})
         assert meta["text_context"].count(". Metadata: ") == 5
-        assert len(meta["image_context"]) >= 3
+        assert len(meta["image_context"]) > 3
         s3_service.download_image_from_s3(f"{s3_prefix}/test_paper/_page_0_Figure_10.jpeg",
                                           f"{PAPERS_STORAGE_PATH}/_page_0_Figure_10.jpeg")
         assert "_page_0_Figure_10.jpeg" in os.listdir(PAPERS_STORAGE_PATH)
