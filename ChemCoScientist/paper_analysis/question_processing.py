@@ -1,11 +1,15 @@
 import base64
 import os
+import subprocess
 
 from ChemCoScientist.chemical_utils.openchemie_functions import extract_molecules_from_figure
 from dotenv import load_dotenv
 from langchain_core.messages import SystemMessage
 from protollm.connectors import create_llm_connector
 from pydantic import BaseModel, Field
+from pypdf import PdfReader, PdfWriter
+from io import BytesIO
+from pathlib import Path
 
 from ChemCoScientist.paper_analysis.chroma_db_operations import ChromaDBPaperStore
 from ChemCoScientist.paper_analysis.prompts import sys_prompt, explore_my_papers_prompt
@@ -91,18 +95,54 @@ def simple_query_llm(model_url: str, question: str, pdfs: list, img_descriptions
     llm = create_llm_connector(model_url)
 
     content = []
+    
+    writer = PdfWriter()
+    
+    base_dir = Path(r"C:\Users\computer\Documents\GitHub\CoScientist\PaperAnalysis\my_papers")
 
+    merged_path = base_dir / "merged_papers_raw.pdf"
+    clean_path = base_dir / "merged_papers_clean.pdf"
+
+    # Append all PDFs
     for paper_pdf in pdfs:
-        with open(paper_pdf, "rb") as f:
-            base64_pdf = base64.b64encode(f.read()).decode("utf-8")
+        reader = PdfReader(paper_pdf)
+        for page in reader.pages:
+            writer.add_page(page)
+
+    with open(merged_path, "wb") as f:
+        writer.write(f)
+        f.close()
+
+    subprocess.run([
+    r"C:\Program Files\qpdf 12.2.0\bin\qpdf.exe",
+    "--linearize",
+    str(merged_path),
+    str(clean_path)
+    ], check=True)
+
+
+    with open(clean_path, "rb") as f:
+        base64_pdf = base64.b64encode(f.read()).decode("utf-8")
         paper_part = {
             "type": "file",
             "file": {
-                "filename": paper_pdf,
+                "filename": "merged_papers.pdf",
                 "file_data": f"data:application/pdf;base64,{base64_pdf}",
             },
         }
         content.append(paper_part)
+
+    # for paper_pdf in pdfs:
+    #     with open(paper_pdf, "rb") as f:
+    #         base64_pdf = base64.b64encode(f.read()).decode("utf-8")
+    #     paper_part = {
+    #         "type": "file",
+    #         "file": {
+    #             "filename": paper_pdf,
+    #             "file_data": f"data:application/pdf;base64,{base64_pdf}",
+    #         },
+    #     }
+    #     content.append(paper_part)
 
     text_part = {"type": "text", "text": f"USER QUESTION: {question}\n\n{img_descriptions}"}
     content.append(text_part)
@@ -112,7 +152,7 @@ def simple_query_llm(model_url: str, question: str, pdfs: list, img_descriptions
         SystemMessage(content=explore_my_papers_prompt),
         HumanMessage(content=content)
     ]
-
+    
     res = llm.invoke(messages)
     return {'answer': res.content}
 
@@ -246,11 +286,42 @@ if __name__ == "__main__":
 
     #######################################################
 
-    paper_store = ChromaDBPaperStore()
-    question = 'What is the title of an article?'
-    question = 'What components are involved in the synthesis of BASHY dyes, and what are the uses of these dyes?'
-    question = 'What IC50 values do weakly active and highly active Bruton\'s tyrosine kinase inhibitors have?'
-    question = 'How does the synthesis of Glionitrin A/B happen?'
-    result = process_question(question, paper_store)
-    from pprint import pprint
-    pprint(result)
+    # paper_store = ChromaDBPaperStore()
+    # question = 'What is the title of an article?'
+    # question = 'What components are involved in the synthesis of BASHY dyes, and what are the uses of these dyes?'
+    # question = 'What IC50 values do weakly active and highly active Bruton\'s tyrosine kinase inhibitors have?'
+    # question = 'How does the synthesis of Glionitrin A/B happen?'
+    # result = process_question(question, paper_store)
+    # from pprint import pprint
+    # pprint(result)
+    papers = [r"C:\Users\computer\Documents\GitHub\CoScientist\PaperAnalysis\my_papers\Eur J Org Chem - July 1998 - Christoffers - Transition‐Metal Catalysis of the Michael Reaction of 1 3‐Dicarbonyl Compounds.pdf"]
+    
+    print(f'Requesting pdf image description from server...')
+    img_descriptions = 'This is additional information about the reactions and molecules that are presented' \
+                        'on the images in the paper. They are passed in the same order as papers themselves.' \
+                        'Use them to answer the question.\n\n'
+    for paper in papers:
+        with open(paper, 'rb') as paper_bytes:
+            detected_reactions = remove_keys(extract_reactions_from_pdf(paper_bytes))
+            img_descriptions += f'Reactions: {str(detected_reactions)}\n'
+        with open(paper, 'rb') as paper_bytes:
+            detected_molecules = remove_keys(extract_molecules_from_pdf(paper_bytes))
+            img_descriptions += f'Molecules: {str(detected_molecules)}\n'
+        img_descriptions += '\n\n'
+                
+    questions = [
+    "Which specific functional group (or groups) in molecule 2i are responsible for its ability to act as a Michael acceptor? Name the compound 2i and its SMILES.",
+    "Identify the Michael donor labelled 1g from the list of structures. To which specific class of 1,3-dicarbonyl compounds does the donor belong? Name the compound 1g and its SMILES.",
+    "Describe the structural features of the cyclic by-product, labeled as structure 7, that can form as an undesirable product during the base-catalyzed Michael addition of acetylacetone to methyl vinyl ketone.",
+    "Examine the structure of the chiral ligand labeled 13b. What is the parent amino acid from which this salicylimine ligand is derived?",
+    "In the asymmetric synthesis of Michael adduct 3j, a nickel(II) complex with the chiral diamine ligand 13i is used. What are the specific alkyl groups attached to the nitrogen atoms of this ligand?",
+    "Examine the structure of the Diels–Alder intermediate labeled 18. This bicyclic compound contains two carbonyl groups; what are their relative positions on the six-membered ring?",
+    "Compare the structures of the Michael donors 1a and 1b. What is the key structural difference between these two malonate esters? Name compounds 1a, 1b and their SMILES.",
+    "Compare the structure of the 'classical' Michael addition product 19 (obtained under basic catalysis) and the 'vinylogous' product 17 (obtained under Fe(III) catalysis). Where did bond formation occur relative to the ester donor group 14c in each case? Name compounds 14c, 17, 19 and their SMILES."
+    ]
+    import sys
+    sys.stdout.reconfigure(encoding="utf-8")
+    for question in questions:
+        result = simple_query_llm(VISION_LLM_URL, question, papers, img_descriptions)
+        # from pprint import pprint
+        print(result['answer'])
