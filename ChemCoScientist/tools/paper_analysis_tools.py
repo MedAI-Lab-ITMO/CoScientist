@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import pandas as pd
@@ -192,9 +193,10 @@ def create_dataset_from_papers(task: str, session_id: str = None) -> pd.DataFram
                 return {'answer': 'No papers provided for search.'}
             papers = SELECTED_PAPERS[session_id]
 
-        final_dataset = extract_mols_prop_dataset(VISION_LLM_URL, task, papers)
-        return {'answer': 'This is the retrieved data:',
-                'metadata': {'dataset': final_dataset.to_dict()}}
+        final_dataset_path, res_img_path = extract_mols_prop_dataset(VISION_LLM_URL, task, papers, session_id)
+        return {"answer": "This is the retrieved data:",
+                "metadata": {"dataset": str(final_dataset_path),
+                             "images_path": res_img_path}}
     except Exception as e:
         logger.error(f'create_dataset_from_papers ERROR: {e}')
         return {'answer': 'Could not extract any data from uploaded papers.'}

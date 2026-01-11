@@ -1,5 +1,7 @@
 from pprint import pprint
-import os, io
+import os
+import io
+import fitz
 from PIL import Image, ImageDraw
 import pandas as pd
 from pathlib import Path
@@ -20,7 +22,12 @@ def draw_bboxes_on_image(
     Returns:
         bytes: JPEG image with rectangles drawn.
     """
-    img = Image.open(io.BytesIO(image))
+    if isinstance(image, fitz.Pixmap):
+        img_bytes = image.tobytes("png")
+        img = Image.open(io.BytesIO(img_bytes))
+    else:
+        img = Image.open(io.BytesIO(image))
+
     draw = ImageDraw.Draw(img)
     
     w, h = img.size
@@ -30,7 +37,7 @@ def draw_bboxes_on_image(
         y1 = bbox[1] * h
         x2 = bbox[2] * w
         y2 = bbox[3] * h
-        draw.rectangle([x1, y1, x2, y2], outline="red", width=3)
+        draw.rectangle([x1, y1, x2, y2], outline="red", width=10)
 
     output = io.BytesIO()
     img.save(output, format="JPEG", quality=95)
@@ -170,6 +177,52 @@ def reactions_ocr(images: list[str]) -> dict:
             "annotated_images": annotated_images
                 }
         }
+
+
+def detect_molecules_on_image(images: list, bboxes_list: list, res_path: str) -> None:
+    """
+    Detects molecules on an image using OpenChemIE tools and
+    saves annotated versions of each image with bounding boxes around detected
+    molecular structures.
+
+    Parameters
+    ----------
+    images : list
+        List of images.
+
+    bboxes_list: list
+        Coordinates of boxes.
+
+    res_path: str
+        Path to resulting images.
+
+    Returns
+    -------
+        None
+
+    Side Effects
+    ------------
+    - Saves an annotated image for each input image as <original_name>_annotated.jpg,
+      containing bounding boxes around detected molecules.
+    """
+
+    for i, img_bytes in enumerate(images):
+
+        entries = bboxes_list[i][0].get('bboxes')
+
+        if entries:
+            bboxes = []
+
+            for entry in entries:
+                smi = entry.get("smiles")
+                if smi:
+                    bboxes.append(entry.get("bbox"))
+
+            if bboxes:
+                annotated_img = draw_bboxes_on_image(img_bytes, bboxes)
+                os.makedirs(Path(res_path), exist_ok=True)
+                out_path = Path(res_path, f"{i}_annotated.jpg")
+                out_path.write_bytes(annotated_img)
 
 
 if __name__ == "__main__":

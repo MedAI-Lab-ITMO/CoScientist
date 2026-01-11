@@ -7,6 +7,7 @@ import threading
 
 from io import BytesIO
 from langgraph.errors import GraphRecursionError
+from pathlib import Path
 from PIL import Image
 from queue import Queue, Empty
 from urllib.parse import urlparse
@@ -443,6 +444,28 @@ def display_chem_ocr_metadata(message):
         print(f'Could not display image: {img_path}, ERROR: {e}')
 
 
+@st.dialog("Extracted compounds", width="large")
+def pdf_viewer(folder: str):
+    folder_path = Path(folder)
+
+    # adjust extensions as needed
+    exts = ("*.png", "*.jpg", "*.jpeg", "*.webp")
+    image_paths = []
+    for ext in exts:
+        image_paths.extend(folder_path.glob(ext))
+
+    image_paths = sorted(image_paths)  # optional: sort by name
+
+    # st.write(f"Folder: {folder_path} ({len(image_paths)} pages)")
+    with st.container(height=500, border=True):
+        for i, p in enumerate(image_paths):
+            img = Image.open(p)
+            st.image(img, width=800)
+
+            if i < len(image_paths) - 1:
+                st.divider()  # horizontal line
+
+
 def display_paper_analysis_metadata(message, message_index):
     """
     Display analysis details extracted from scientific papers, allowing users to selectively view text, images, and metadata.
@@ -461,6 +484,10 @@ def display_paper_analysis_metadata(message, message_index):
 
     if "dataset" in paper_analysis.keys():
         display_dataset(paper_analysis.get("dataset"), message_index)
+
+    if "images_path" in paper_analysis.keys():
+        if st.button("Check extracted compounds"):
+            pdf_viewer(paper_analysis.get("images_path"))
 
     if "text_context" in paper_analysis.keys():
         text_context = paper_analysis.get("text_context")
@@ -527,7 +554,8 @@ def display_paper_analysis_metadata(message, message_index):
 
 def display_dataset(dataset, message_index):
     import pandas as pd
-    df = pd.DataFrame.from_dict(dataset)
+    # df = pd.DataFrame.from_dict(dataset)
+    df = pd.read_csv(dataset, sep="\t")
 
     st.dataframe(df)
 
@@ -535,13 +563,13 @@ def display_dataset(dataset, message_index):
     csv = df.to_csv(sep="\t", index=False).encode('utf-8')
 
     # Provide a download button to download the CSV file
-    st.download_button(
-        label="Download dataset as CSV",
-        data=csv,
-        file_name='dataset.csv',
-        mime='text/csv',
-        key=f"download_csv_{message_index}",
-    )
+    # st.download_button(
+    #     label="Download dataset as CSV",
+    #     data=csv,
+    #     file_name='dataset.csv',
+    #     mime='text/csv',
+    #     key=f"download_csv_{message_index}",
+    # )
 
 def display_dataset(dataset, message_index):
     import pandas as pd
