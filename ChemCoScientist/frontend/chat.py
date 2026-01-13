@@ -448,13 +448,12 @@ def display_chem_ocr_metadata(message):
 def pdf_viewer(folder: str):
     folder_path = Path(folder)
 
-    # adjust extensions as needed
     exts = ("*.png", "*.jpg", "*.jpeg", "*.webp")
     image_paths = []
     for ext in exts:
         image_paths.extend(folder_path.glob(ext))
 
-    image_paths = sorted(image_paths)  # optional: sort by name
+    image_paths = sorted(image_paths)
 
     # st.write(f"Folder: {folder_path} ({len(image_paths)} pages)")
     with st.container(height=500, border=True):
@@ -463,7 +462,7 @@ def pdf_viewer(folder: str):
             st.image(img, width=800)
 
             if i < len(image_paths) - 1:
-                st.divider()  # horizontal line
+                st.divider()
 
 
 def display_paper_analysis_metadata(message, message_index):
@@ -552,42 +551,10 @@ def display_paper_analysis_metadata(message, message_index):
                     st.write("No image context available")
 
 
-def display_dataset(dataset, message_index):
+def display_dataset(dataset: str):
     import pandas as pd
-    # df = pd.DataFrame.from_dict(dataset)
     df = pd.read_csv(dataset, sep="\t")
-
     st.dataframe(df)
-
-    # Create a CSV from the DataFrame for download
-    csv = df.to_csv(sep="\t", index=False).encode('utf-8')
-
-    # Provide a download button to download the CSV file
-    # st.download_button(
-    #     label="Download dataset as CSV",
-    #     data=csv,
-    #     file_name='dataset.csv',
-    #     mime='text/csv',
-    #     key=f"download_csv_{message_index}",
-    # )
-
-def display_dataset(dataset, message_index):
-    import pandas as pd
-    df = pd.DataFrame.from_dict(dataset)
-
-    st.dataframe(df)
-
-    # Create a CSV from the DataFrame for download
-    csv = df.to_csv(sep="\t", index=False).encode('utf-8')
-
-    # Provide a download button to download the CSV file
-    st.download_button(
-        label="Download dataset as CSV",
-        data=csv,
-        file_name='dataset.csv',
-        mime='text/csv',
-        key=f"download_csv_{message_index}",
-    )
 
 
 def async_to_sync(async_gen):

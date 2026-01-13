@@ -1,10 +1,11 @@
-from pprint import pprint
-import os
-import io
 import fitz
+import io
+import os
+
+from pathlib import Path
 from PIL import Image, ImageDraw
 import pandas as pd
-from pathlib import Path
+from pprint import pprint
 
 from ChemCoScientist.chemical_utils.openchemie_functions import extract_molecules_from_figure, extract_reactions_from_figure
 
@@ -23,10 +24,8 @@ def draw_bboxes_on_image(
         bytes: JPEG image with rectangles drawn.
     """
     if isinstance(image, fitz.Pixmap):
-        img_bytes = image.tobytes("png")
-        img = Image.open(io.BytesIO(img_bytes))
-    else:
-        img = Image.open(io.BytesIO(image))
+        image = image.tobytes("ppm")
+    img = Image.open(io.BytesIO(image))
 
     draw = ImageDraw.Draw(img)
     
@@ -179,11 +178,10 @@ def reactions_ocr(images: list[str]) -> dict:
         }
 
 
-def detect_molecules_on_image(images: list, bboxes_list: list, res_path: str) -> None:
+def render_molecule_detections(images: list, bboxes_list: list, res_path: str) -> None:
     """
-    Detects molecules on an image using OpenChemIE tools and
-    saves annotated versions of each image with bounding boxes around detected
-    molecular structures.
+    Renders bounding boxes around molecular structures that were extracted by
+    OpenChemIE tools and saves annotated versions of each image.
 
     Parameters
     ----------
