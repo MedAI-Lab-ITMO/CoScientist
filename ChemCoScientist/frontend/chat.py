@@ -352,7 +352,13 @@ def message_handler(user_query: str, placeholder: st.delta_generator.DeltaGenera
                         st.session_state.messages[-1]["chem_ocr"] = result["metadata"]["chem_ocr"]
                         # Display the metadata immediately after storing it
                         message_index = len(st.session_state.messages) - 1
-                        display_chem_ocr_metadata(st.session_state.messages[-1], message_index)
+                        display_chem_ocr_metadata(st.session_state.messages[-1])
+                    
+                    if "docking" in result["metadata"].keys():
+                        st.session_state.messages[-1]["docking"] = result["metadata"]["docking"]
+                        # Display the metadata immediately after storing it
+                        message_index = len(st.session_state.messages) - 1
+                        display_docking_metadata(st.session_state.messages[-1])
 
                 if mols := msg.get("molecules_vis"):
                     for mol in mols:
@@ -392,6 +398,19 @@ def display_chem_ocr_metadata(message):
                     st.image(img, width=400)
     except Exception as e:
         print(f'Could not display image: {img_path}, ERROR: {e}')
+
+
+def display_docking_metadata(message):
+    html_file = message["docking"]["html_file"]
+    with open(html_file, "r") as f:
+        html_content = f.read()
+    st.components.v1.html(html_content, height=400)
+    st.download_button(
+        label="Download HTML file",
+        data=html_content,
+        file_name=html_file,
+        key=f"download_html_{html_file}",
+    )
 
 
 def display_paper_analysis_metadata(message, message_index):

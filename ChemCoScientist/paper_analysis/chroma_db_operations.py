@@ -17,7 +17,7 @@ from protollm.connectors import create_llm_connector
 from pydantic import BaseModel, Field
 import requests
 
-from ChemCoScientist.chemical_utils.openchemie_functions import extract_molecules_from_figure, extract_reactions_from_figure
+from ChemCoScientist.chemical_utils.chemical_functions import extract_molecules_from_figure, extract_reactions_from_figure
 from ChemCoScientist.paper_analysis.prompts import summarisation_prompt
 from ChemCoScientist.paper_analysis.settings import allowed_providers
 from ChemCoScientist.paper_analysis.settings import settings as default_settings
