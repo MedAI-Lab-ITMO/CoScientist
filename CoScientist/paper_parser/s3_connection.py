@@ -79,7 +79,7 @@ class S3BucketService:
             None
         """
         client = self.create_s3_client()
-        destination_path = str(Path(prefix, source_file_name)).replace("\\", "/")
+        destination_path = (Path(prefix, source_file_name)).as_posix()
         
         with open(file_path, 'rb') as f:
             content = f.read()
