@@ -159,6 +159,8 @@ Failure handling:
     and an empty or absent `metadata.papers`.
 """
 
+=======
+>>>>>>> beee5da (add docking score calculation in chemist agent)
 
 additional_agents_description = (
     automl_agent_description
