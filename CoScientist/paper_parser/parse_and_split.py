@@ -128,7 +128,7 @@ def clean_up_html(
         if not img_src:
             continue
 
-        local_img_path = str(Path(doc_dir) / img_src).replace("\\", "/")
+        local_img_path = (Path(doc_dir) / img_src).as_posix()
         try:
             images = list(map(convert_to_base64, [local_img_path]))
         except OSError as e:
