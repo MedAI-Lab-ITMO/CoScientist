@@ -343,7 +343,7 @@ def validate_docking(opt, model, SRC, TRG,n_samples=100,spec_conds=None,save=Fal
 def predict_smiles(smiles_list : List[str],
                    case : str = "Brain_cancer",
                    timeout : int = 10, #30 min
-                   url: str = "http://10.64.4.243:81",
+                   url: str = "http://10.64.4.254:81",
                    **kwargs,):
     url = url+"/predict_ml"
     params = {

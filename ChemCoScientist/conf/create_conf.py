@@ -14,10 +14,12 @@ from ChemCoScientist.agents.agents import (
     ml_dl_agent,
     nanoparticle_node,
     paper_analysis_agent,
+    coder_agent,
+    chem_ocr_agent
 )
-from CoScientist.scientific_agents.agents import coder_agent
-from ChemCoScientist.tools import chem_tools_rendered, nano_tools_rendered, tools_rendered, \
-    paper_analysis_tools_rendered
+#from CoScientist.scientific_agents.agents import coder_agent
+from ChemCoScientist.tools import chem_tools_rendered, nano_tools_rendered, tools_rendered, data_tools_rendered, \
+    paper_analysis_tools_rendered, chem_ocr_tools_rendered
 from definitions import ROOT_DIR
 
 
@@ -32,13 +34,11 @@ It can generate medicinal molecules. You must use this agent for molecules gener
 dataset_builder_agent_description = """
 'dataset_builder_agent' - collects data from two databases - ChemBL and BindingDB.
 To collect data, it needs either the protein name or a specific id from a specific database. 
-It can collect data from one specific database or from both. All data is saved locally. 
-It also processes data: removes junk values, empty cells, and can filter if necessary.
+It can collect data from one specific database or from both. All data is saved locally.
 """
 
 coder_agent_description = """
-'coder_agent' - can write any simple python scientific code. Can use rdkit and other 
-chemical libraries. Can perform calculations.
+'coder_agent' - Is expert in data science. It can write and execute python code. Always use it for data management and EDA.
 """
 
 paper_analysis_agent_description = """
@@ -102,6 +102,34 @@ Failure handling:
 - If sources are paywalled, note it and provide accessible alternatives when possible.
 """
 
+chem_ocr_agent_description = """
+Agent name: chem_ocr_agent
+
+Purpose: Extract molecular structures and reaction information from chemical images or PDF documents.
+When to activate: User provides an image containing drawn molecules,
+reaction schemes, mechanisms, or other chemical entities.
+
+Procedure:
+    1) Plan the agent's steps.
+    2) Extract molecules or reactions using the internal OCR pipeline.
+    4) Return detected molecules and reaction elements as well as annotated images with detected strcutures.
+
+Constraints: Do not call other agents unless the user explicitly requests them.
+Do not attempt extraction if no image is provided.
+
+Inputs:
+- image or PDF: bytes
+- user_query: str (optional clarification about what to extract)
+
+Outputs:
+- Extracted molecular SMILES or reaction elements.
+- Annotated images with detected molecules or reaction elements.
+
+Failure handling:
+If the image cannot be interpreted or no structures are detected, state
+"no extractable chemistry found" and return an empty result set.
+"""
+
 
 additional_agents_description = (
     automl_agent_description
@@ -109,6 +137,7 @@ additional_agents_description = (
     + coder_agent_description
     + paper_analysis_agent_description
     + web_search_description
+    + chem_ocr_agent_description
 )
 
 conf = {
@@ -131,7 +160,8 @@ conf = {
             "dataset_builder_agent",
             "coder_agent",
             "paper_analysis_agent",
-            "web_search"
+            "web_search",
+            "chem_ocr_agent"
         ],
         # nodes for scenario agents
         "scenario_agent_funcs": {
@@ -141,18 +171,20 @@ conf = {
             "dataset_builder_agent": dataset_builder_agent,
             "coder_agent": coder_agent,
             "paper_analysis_agent": paper_analysis_agent,
-            "web_search": web_search_node
+            "web_search": web_search_node,
+            "chem_ocr_agent": chem_ocr_agent
         },
         # descripton for agents tools - if using langchain @tool
         # or description of agent capabilities in free format
         "tools_for_agents": {
             "chemist_node": [chem_tools_rendered],
             "nanoparticle_node": [nano_tools_rendered],
-            "dataset_builder_agent": [dataset_builder_agent_description],
+            "dataset_builder_agent": [data_tools_rendered],
             "coder_agent": [coder_agent_description],
             "ml_dl_agent": [automl_agent_description],
             "paper_analysis_agent": [paper_analysis_tools_rendered],
             "web_search": [web_search_description],
+            "chem_ocr_agent": [chem_ocr_tools_rendered]
         },
         # full descripton for agents tools
         "tools_descp": tools_rendered + additional_agents_description,
@@ -188,49 +220,175 @@ conf = {
                 "enhancemen_significance": None,
             },
             "planner": {
-                "problem_statement": None,
-                "rules": None,
-                "desc_restrictions": None,
-                "examples": None,
+                "problem_statement": """
+                    Your task is to analyze the user's objective and design a structured plan
+                    consisting of atomic subtasks. Each subtask must be directly executable by one
+                    of the system agents listed below. Subtasks that do not depend on each other
+                    should be grouped together so they can be executed simultaneously.
+                    The output must represent this plan as a list of lists, where each inner list
+                    contains tasks that can be performed in parallel.
+                    """,
+                "rules": """
+                    1. Each subtask must correspond to an action that can be handled by one of the available system agents.
+                    2. Dependent subtasks must be placed in separate sequential steps.
+                    3. Independent subtasks (i.e., that can run in parallel) should appear in the same inner list.
+                    4. Every subtask must be expressed clearly as an action (e.g., 'Generate X, Find Y').
+                    5. Avoid unnecessary decomposition — only split when separate agents are required or there are dependencies.
+                    6. Keep logical order and coherence between subtasks.
+                    7. You must include all information you see in user prompt to your plan
+                    8. If you get a general question about chemistry first call paper_analysis_agent. Use web search
+                    only if paper_analysis_agent has no answer. 
+                    """,
+                "desc_restrictions": """
+                    - You cant name agents
+                    - The plan must contain no more than 5 steps.
+                    - Each step must include at least one subtask.
+                    - Each subtask should be short (one concise sentence or phrase).
+                    - All task related coding must be collected in one single task. Don't split it.
+                    - When you asked to train models using dataset procceed to training
+                    """,
+                "examples": """
+                    Example 1:
+                    Request: "Collect spectra for sample A and B, then analyze them"
+                    Response: {
+                        "steps": [
+                            ["Collect spectra for sample A", "Collect spectra for sample B"],
+                            ["Analyze spectra of collected samples"]
+                        ]
+                    }
+
+                    Example 2:
+                    Request: "Generate dataset, train model, and predict for molecule1 and molecule2"
+                    Response: {
+                        "steps": [
+                            ["Generate dataset"],
+                            ["Train model"],
+                            ["Predict for molecule1", "Predict for molecule2"]
+                        ]
+                    }
+
+                    Example 3:
+                    Request: "Generate 5 molecules related to MEK1, make 3 molecules using the GSK model"
+                    Response: {
+                        "steps": [
+                            ["Generate 5 molecules related to MEK1", "Generate 3 molecules using the GSK model"]
+                        ]
+                    }
+                    """,
                 "additional_hints": """
-                Before starting model training, check data for garbage with 'dataset_builder_agent'. 
-                If the user already provides a dataset, go straight to 'ml_dl_agent' and skip 'dataset_builder_agent' 
-                For questions about papers, articles, or research findings, plan exactly two steps: 
-                first 'paper_analysis_agent', then 'web_search'. 
-                Do not schedule any other agents for such research tasks.
-                If user asks find something in internet you have to use 'web_search'.
-                Always choose the minimal set of agents necessary for the user's request.
-                """,
+                    - If multiple molecules, files, or entities are processed in the same way, group those actions together as parallel subtasks.
+                    - When an earlier step produces data required for another (e.g., training before prediction), make sure the dependent step comes later.
+                    - If the user request is ambiguous, infer a reasonable decomposition based on tool capabilities.
+                    - If the user requests molecule or reaction extraction from images call chem_ocr_agent.
+                    """,
             },
             "chat": {
                 "problem_statement": None,
                 "additional_hints": """
-                You are a chemical agent system. You can do the following:
+                You are a chemical agent system. Your language is Russian. You can do the following:
                 - train generative models (generate SMILES molecules), train predictive models (predict properties)
                 - prepare a dataset for training
                 - download data from chemical databases: ChemBL, BindingDB
                 - perform calculations with chemical python libraries
                 - solve problems of nanomaterial synthesis
                 - analyze chemical articles
+                - extract molecules and reactions from images
                 If user ask something like "What can you do" - make answer yourself!
+                
+                If user asks to extract some data from images do not answer the question yourself, pass it to the planner
                     """,
             },
             "summary": {
-                "problem_statement": None,
-                "rules": None,
-                "additional_hints": """                
-                Never write full paths! Only file names. If 'paper_analysis_agent' and 'web_search' were used,  
-                present the final answer as: paper_analysis: <paper_analysis_agent result>   web_search: <web_search_node result>.
-                """,
+                "problem_statement": """Your task is to compose the **final answer** for the user, based on 
+                    `system_response` and `intermediate_thoughts`. Your language is Russian. Your goal is to ensure that the 
+                    user receives a **complete, accurate, and concise** response to their query.""",
+                "rules": """Your response must be the **direct and final answer** to the user’s query.
+                    - Do **not** describe what was done — instead, **present what was achieved**.  
+                    - Extract and summarize **all insights, results, and conclusions**. 
+                    - In your response, include every piece of information provided by paper_analysis_agent. 
+                      Ensure the answer is fully comprehensive and no data is overlooked or omitted. 
+                    - Avoid unnecessary filler, explanations, or meta-text.  
+                    - When appropriate, organize the answer as a **short report** with sections 
+                    such as *Summary*, *Results*, *Findings*, *Conclusion*, etc. (They must be in Russian.)  
+                    - The *Results* section must contain all facts provided by the agents
+                    - Always ensure your response **directly answers the user’s query**.  
+                    - Respond in **markdown** format.
+                    - Double-check that your answer is **complete, accurate, and self-contained**.
+                    - You must exclude any non-standard or unreadable symbols (hieroglyphs).""",
+
+                "additional_hints": """
+                    Never include full file paths — only file names.
+                    """,
+
             },
             "replanner": {
-                "problem_statement": None,
-                "rules": None,
-                "examples": None,
-                "additional_hints": "Optimize the plan, transfer already existing answers from previous executions! For example, weather values.\
-                Don't forget tasks! Plan the Coder Agent to save files.\
-                    Be more careful about which tasks can be performed in parallel and which ones can be performed sequentially.\
-                        For example, you cannot fill a table and save it in parallel.",
+                "problem_statement": """
+                    You are a replanning expert. Your job is to optimize and adjust an existing
+                    step-by-step plan based on what has already been completed. You must not
+                    invent or introduce new tasks — only update, reorder, or remove steps as
+                    necessary to reach the final goal efficiently. When all tasks are done,
+                    return a final response instead of new steps.
+                    """,
+                "rules": """
+                    1. Each subtask must correspond to an action that can be handled by one of the available system agents.
+                    2. Every subtask must be expressed clearly as an action (e.g., 'Generate X, Find Y').
+                    3. Do not create new tasks beyond the original plan. You can only adjust current tasks.
+                    4. Remove tasks that are already completed.
+                    5. You must include past steps results to enrich current tasks. 
+                    6. Preserve the logical order of dependent tasks.
+                    7. Tasks that can be done in parallel should remain grouped in the same list.
+                    8. When all tasks are finished, output the final response (summary or confirmation).
+                    9. You cant name agents
+                    10. All task related coding must be collected in one single task. Don't split it.
+                    11. The plan must contain no more than 5 steps.
+                    12. You can not refer to past steps results, you must include them into your plan
+                    13. Always return output strictly in JSON format.
+                    """,
+                "examples": """
+                    Example 1:
+                    Original plan:
+                    [
+                        ["Collect data for BTK with IC50 values from ChEMBL using dataset_builder_agent"],
+                        ["Clean and preprocess the BTK IC50 dataset"],
+                        ["Train model"]
+                    ]
+                    Past steps:
+                    {
+                        ("Collect data for BTK with IC50 values from ChEMBL using dataset_builder_agent", "Dataset saved to /data/BTK_IC50.csv")
+                    }
+
+                    Response:
+                    {
+                        "action": "steps",
+                        "steps": [
+                            ["Clean and preprocess the /data/BTK_IC50.csv dataset"],
+                            ["Train model"]
+                        ]
+                    }
+
+                    Example 2:
+                    Original plan:
+                    [
+                        ["Collect data for BTK with IC50 values from ChEMBL using dataset_builder_agent"]
+                    ]
+                    Past steps:
+                    {
+                        ("Collect data for BTK with IC50 values from ChEMBL using dataset_builder_agent", "Dataset saved successfully to /data/BTK_IC50.csv")
+                    }
+
+                    Response:
+                    {
+                        "action": "response",
+                        "response": "The dataset for BTK with IC50 values has been successfully collected and stored: /data/BTK_IC50.csv. No further actions are required."
+                    }
+                    """,
+                "additional_hints": """
+                    - Optimize the plan using existing completed results.
+                    - You must include past steps results into your plan.
+                    - Do not create new tasks or agents that were not part of the original plan.
+                    - Be careful with task dependencies — never run saving or training before required data is ready.
+                    - Remember: return only JSON, no text before or after it.
+                    """,
             },
         },
     },

@@ -2,11 +2,14 @@ import os
 import time
 
 import streamlit as st
-from protollm.agents.builder import GraphBuilder
+#from protollm.agents.builder import GraphBuilder
 from streamlit_extras.grid import GridDeltaGenerator, grid
 from ChemCoScientist.tools.utils import convert_to_base64
+from ChemCoScientist.logger import logger
 from ChemCoScientist.frontend.utils import file_uploader, clean_folder
 from ChemCoScientist.frontend.streamlit_endpoints import process_uploaded_paper
+from ChemCoScientist.memory.json_db import JSONFileDB
+from ChemCoScientist.memory.memory_manager import MemoryGraph
 from definitions import ROOT_DIR
 
 
@@ -31,7 +34,7 @@ def init_language():
 
         on_lang = st.selectbox(
             "Select language",
-            placeholder="English",
+            placeholder="Русский",
             key="language",
             options=["English", "Русский"],
         )
@@ -78,7 +81,7 @@ def init_models():
                         disabled=bool(st.session_state.backend),
                     )
                     if submit:
-                        init_backend()
+                        init_backend(backend='ChemCoScientist')
                 else:
                     st.write(f"Система успешно инициализированна!")
 
@@ -106,7 +109,7 @@ def init_models():
                         disabled=bool(st.session_state.backend),
                     )
                     if submit:
-                        init_backend()
+                        init_backend(backend='ChemCoScientist')
                 else:
                     st.write(f"The system has been initialized successfully!")
 
@@ -274,7 +277,7 @@ def on_provider_selected_rus(grid: GridDeltaGenerator):
             )
 
 
-def init_backend():
+def init_backend(backend):
     """
     Initializes the backend for the application, configuring it with API keys and models from session state.
     
@@ -321,9 +324,19 @@ def init_backend():
         os.environ["VISION_LLM_URL"] = os.environ["VISION_LLM_URL"]
 
     # it must be here !!!
-    from ChemCoScientist.conf.create_conf import conf
-
-    st.session_state.backend = GraphBuilder(conf)
+    if backend == 'ChemCoScientist':
+        from ChemCoScientist.conf.create_conf import conf
+    elif backend == 'MedCoScientist':
+        from MedCoScientist.conf.create_conf import conf
+    else:
+        raise ValueError(f'Wrong backend value: {backend}')
+        
+    conf['configurable']['logger'] = logger
+    conf['files_db'] = JSONFileDB(os.environ.get('MEMORY_DB_PATH', 'ChemCoScientist/data_store/files_db.json'))
+    conf['configurable']['session_id'] = st.session_state.session_id
+    #st.session_state.backend = GraphBuilder(conf)
+    if "backend" not in st.session_state:
+        st.session_state.backend = MemoryGraph(config=conf, llm=conf['configurable']['llm'], logger=logger)
 
 
 def init_dataset():
@@ -612,7 +625,7 @@ def load_images():
         st.toast(f"Successfully loaded images", icon="✅")
 
 
-def side_bar():
+def side_bar(backend='ChemCoScientis'):
     """
     Initializes the Streamlit sidebar with options for configuring the analysis environment 
     and provides example queries to guide user interaction.
@@ -632,7 +645,7 @@ def side_bar():
     # st.session_state.language = 'Русский'
 
     # uncomment for start without pass model, key, etc (from gui)
-    init_backend()
+    init_backend(backend)
 
     with st.sidebar:
         init_language()

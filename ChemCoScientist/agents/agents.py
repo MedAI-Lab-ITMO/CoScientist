@@ -1,6 +1,7 @@
 import ast
 import os
 import time
+import json
 from typing import Annotated
 import operator
 import streamlit as st
@@ -16,13 +17,12 @@ from ChemCoScientist.agents.agents_prompts import (
     automl_prompt,
     ds_builder_prompt,
     worker_prompt,
+    chem_ocr_prompt
 )
-from ChemCoScientist.tools import chem_tools, nanoparticle_tools, paper_analysis_tools
-from ChemCoScientist.tools import chem_tools, nanoparticle_tools
-from ChemCoScientist.tools.chemist_tools import fetch_BindingDB_data, fetch_chembl_data
+from ChemCoScientist.tools import chem_tools, nanoparticle_tools, paper_analysis_tools, data_tools, chem_ocr_tools
 from ChemCoScientist.tools.ml_tools import agents_tools as automl_tools
 
-from ChemCoScientist.agents.agents_prompts import paper_agent_prompt
+from ChemCoScientist.agents.agents_prompts import paper_agent_prompt, coder_prompt
 from definitions import ROOT_DIR
 
 
@@ -48,27 +48,59 @@ def get_all_files(directory: str):
     return file_paths
 
 
-def dataset_builder_agent(state: dict, config: dict) -> Command:
-    """
-    Constructs a command to generate a dataset tailored to a given chmical task, leveraging external 
-    data sources and a code agent. Can receive data from ChemBL and BindingDB.
-    
-    Args:
-        state (dict): A dictionary containing the current state, including the user's scientific task description.
-        config (dict): A dictionary containing configuration details, such as model information and API keys,
-                       as well as the directory for storing the generated dataset.
-    
-    Returns:
-        Command
-    """
-    print("--------------------------------")
-    print("Dataset builder agent called")
-    print(state["task"])
-    print("--------------------------------")
-    task = state["task"]
 
-    config_cur_agent = config["configurable"]["additional_agents_info"]["dataset_builder_agent"]
-    print(config_cur_agent)
+def dataset_builder_agent(state: dict, config: dict):
+
+    task = state["task"]
+    plan = state["plan"]
+    llm = config["configurable"]["llm"]
+
+    worker_prompt = f"Save data to this path: {os.path.join(ROOT_DIR, os.environ['DS_STORAGE_PATH'])}"
+    data_agent = create_react_agent(
+        llm, tools=data_tools, prompt=worker_prompt
+    )
+
+    task_formatted = f"""For the following plan:\n{str(plan)}\n\nYou are tasked with executing: {task}."""
+    inputs = {"messages": [{"role": "user", "content": task_formatted}]}
+
+    path = os.path.join(ROOT_DIR, os.environ["DS_STORAGE_PATH"])
+
+    old_files = set(get_all_files(path))
+    response = data_agent.invoke({"messages": [("user", task_formatted)]})
+
+    new_files = set([file for file in get_all_files(path) if file not in old_files])
+
+    files_db = config['configurable'].get('files_db')
+    if files_db:
+        for file_name in new_files:
+            file_path=os.path.join(path, file_name)
+            source = 'chemble' if 'chemble' in file_name else "bindingdb" #TODO IMPLEMENT BETTER
+
+            files_db.add_file(
+                file_path=file_path,
+                original_filename=file_name, 
+                file_size=os.path.getsize(file_path),
+                uploaded_by="user", #TODO IMPLEMENT DIFFERENT USER HANDLING
+                user_context=state["input"],
+                upload_source=source
+            )
+
+    return Command(update={
+        "past_steps": Annotated[set, operator.or_](set([(task, response["messages"][-1].content)])),
+        "nodes_calls": Annotated[set, operator.or_](set([
+            ("dataset_builder_agent", (("text", response["messages"][-1].content),))
+        ])),
+        "metadata": Annotated[dict, operator.or_]({
+            "dataset_builder_agent": old_files
+        }),
+    })
+
+def coder_agent(state: dict, config: dict):
+
+    task = state["task"]
+    plan = state["plan"]
+
+    config_cur_agent = config["configurable"]["additional_agents_info"]["coder_agent"]
 
     model = (
         LiteLLMModel(config_cur_agent["model_name"], api_base=config_cur_agent["url"], api_key=config_cur_agent["api_key"])
@@ -77,25 +109,46 @@ def dataset_builder_agent(state: dict, config: dict) -> Command:
     )
 
     agent = CodeAgent(
-        tools=[fetch_BindingDB_data, fetch_chembl_data],
+        #tools=coder_tools,
+        tools = [],
         model=model,
         additional_authorized_imports=["*"],
     )
 
-    response = agent.run(
-        ds_builder_prompt + config_cur_agent["ds_dir"] + "\nSo, user ask: \n" + task + additional_ds_builder_prompt
-    )
+    plan_str = plan
+    if isinstance(plan[0], list):
+        plan_str = [item for sublist in plan for item in sublist]
 
-    files = get_all_files(os.path.join(ROOT_DIR, os.environ["DS_STORAGE_PATH"]))
+    plan_str = ";".join(plan_str)
+    user_task = f"For the following plan: {plan_str}; your task is {task}"
+
+    agent_input = coder_prompt.format(directory=os.path.join(ROOT_DIR, os.environ['DS_STORAGE_PATH']), task=user_task)
+    response = agent.run(agent_input)
+
+    file_name = response.get('file_name')
+    files_db = config['configurable'].get('files_db')
+
+    if file_name and files_db:
+        path = os.path.join(ROOT_DIR, os.environ["DS_STORAGE_PATH"])
+        file_path=os.path.join(path, file_name)
+        source = 'coder_agent'
+
+        files_db.add_file(
+            file_path=file_path,
+            original_filename=file_name, 
+            file_size=os.path.getsize(file_path),
+            uploaded_by="user", #TODO IMPLEMENT DIFFERENT USER HANDLING
+            user_context=state["input"],
+            upload_source=source
+        )
+
+    #TODO manage generated file here
 
     return Command(update={
         "past_steps": Annotated[set, operator.or_](set([(task, str(response))])),
         "nodes_calls": Annotated[set, operator.or_](set([
-            ("dataset_builder_agent", (("text", str(response)),))
+            ("ml_dl_agent", (("text", str(response)),))
         ])),
-        "metadata": Annotated[dict, operator.or_]({
-            "dataset_builder_agent": files
-        }),
     })
 
 
@@ -124,6 +177,7 @@ def ml_dl_agent(state: dict, config: dict) -> Command:
     print("--------------------------------")
 
     task = state["task"]
+    plan = state["plan"]
     config_cur_agent = config["configurable"]["additional_agents_info"]["ml_dl_agent"]
 
     model = (
@@ -137,7 +191,17 @@ def ml_dl_agent(state: dict, config: dict) -> Command:
         model=model,
         additional_authorized_imports=["*"],
     )
-    response = agent.run(automl_prompt + task)
+
+    plan_str = plan
+    if isinstance(plan[0], list):
+        plan_str = [item for sublist in plan for item in sublist]
+
+    plan_str = ";".join(plan_str)
+    user_task = f"For the following plan: {plan_str}; your task is {task}"
+
+
+    agent_input = automl_prompt.format(directory=os.path.join(ROOT_DIR, os.environ['DS_STORAGE_PATH']), task=user_task)
+    response = agent.run(agent_input)
 
     return Command(update={
         "past_steps": Annotated[set, operator.or_](set([(task, str(response))])),
@@ -282,8 +346,8 @@ def paper_analysis_agent(state: dict, config: dict) -> Command:
     """
     print("--------------------------------")
     print("Paper agent called")
-    print("Current task:")
-    print(state["task"])
+    print(f"Current task: {state['task']}")
+    print(f"Current input: {state['input']}")
     print("--------------------------------")
 
     llm: BaseChatModel = config["configurable"]["llm"]
@@ -292,7 +356,7 @@ def paper_analysis_agent(state: dict, config: dict) -> Command:
 
     # TODO: update this when proper frontend is added
     try:
-        current_prompt = f'{paper_agent_prompt}\n session_id = {st.session_state.session_id}'
+        current_prompt = f'{paper_agent_prompt}\n session_id = {config["configurable"]["session_id"]}'
     except:
         current_prompt = f'{paper_agent_prompt}\nsession_id is not needed in this case, pass None'
 
@@ -309,7 +373,10 @@ def paper_analysis_agent(state: dict, config: dict) -> Command:
             updated_metadata = state.get("metadata", {}).copy()
             pa_metadata = {"paper_analysis": result.get("metadata")}
             if pa_metadata["paper_analysis"]:
-                updated_metadata.update(pa_metadata)
+                if "paper_analysis" in updated_metadata.keys():
+                    updated_metadata["paper_analysis"].update(pa_metadata["paper_analysis"])
+                else:
+                    updated_metadata.update(pa_metadata)
 
             if type(result["answer"]) is list:
                 result["answer"] = ', '.join(result["answer"])
@@ -329,5 +396,78 @@ def paper_analysis_agent(state: dict, config: dict) -> Command:
 
     return Command(goto=END, update={
         "response": "I cannot answer your question right now using the DB or uploaded papers."
+                    "Can I help with something else?"
+    })
+    
+
+def chem_ocr_agent(state: dict, config: dict) -> Command:
+    """
+    Extracts molecular structures and reaction information from images.
+
+    This agent processes user-provided chemical images—such as reaction schemes, 
+    drawn molecules, or figures from papers—and converts them into machine-readable 
+    formats. It attempts to identify molecular structures, reaction components, 
+    and other depicted chemical entities, returning standardized SMILES.
+
+    Args:
+        state (dict): The current state of the interaction, including images or PDFs provided by user.
+        config (dict): Configuration settings, including the OCR pipeline to use.
+
+    Returns:
+        Command: An object containing the next step in the process ('replan' or `END`) 
+        and updates to the state, including extracted SMILES, user images with detected chemical entities
+        and any error produced during parsing.
+    """
+    print("--------------------------------")
+    print("ChemOCR agent called")
+    print("Current task:")
+    print(state["task"])
+    print("--------------------------------")
+
+    llm: BaseChatModel = config["configurable"]["llm"]
+
+    task = state["task"]
+
+    # TODO: update this when proper frontend is added
+    try:
+        current_prompt = f'{chem_ocr_prompt}\n session_id = {config["configurable"]["session_id"]}'
+    except:
+        current_prompt = f'{chem_ocr_prompt}\nsession_id is not needed in this case, pass None'
+
+    chem_ocr_agent = create_react_agent(
+        llm, chem_ocr_tools, state_modifier=current_prompt
+    )
+
+    for attempt in range(3):
+        try:
+            response = chem_ocr_agent.invoke({"messages": [("user", task)]})
+
+            result = ast.literal_eval(response["messages"][2].content)
+            
+            answer_serialized = json.dumps(result["answer"], sort_keys=True)
+
+            updated_metadata = state.get("metadata", {}).copy()
+            ocr_metadata = {"chem_ocr": result.get("metadata", None)}
+            if ocr_metadata["chem_ocr"]:
+                if "chem_ocr" in updated_metadata.keys():
+                    updated_metadata["chem_ocr"].update(ocr_metadata["chem_ocr"])
+                else:
+                    updated_metadata.update(ocr_metadata)
+
+            return Command(update={
+                "past_steps": Annotated[set, operator.or_](set([
+                    (task, answer_serialized)
+                ])),
+                "nodes_calls": Annotated[set, operator.or_](set([
+                    ("chem_ocr_agent", (("text", answer_serialized),))
+                ])),
+                "metadata": Annotated[dict, operator.or_](updated_metadata),
+            })
+        except Exception as e:
+            print(f"ChemOCR agent error: {str(e)}. Retrying ({attempt + 1}/3)")
+            time.sleep(1.2 ** attempt)
+
+    return Command(goto=END, update={
+        "response": "I cannot extract molecules or reactions right now."
                     "Can I help with something else?"
     })

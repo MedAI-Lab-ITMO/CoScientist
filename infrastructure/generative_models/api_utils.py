@@ -28,6 +28,12 @@ from autodock_vina_python3.src.docking_score import docking_list
 from utils.check_novelty import check_novelty_chembl
 import pickle
 from GAN.gan_lstm_refactoring.train_gan import auto_train
+import infrastructure.generative_models.GAN.gan_lstm_refactoring.scripts.model as KOSTIL_FOR_PICKL
+sys.modules['scripts.model'] = KOSTIL_FOR_PICKL
+sys.modules['scripts.utils'] = KOSTIL_FOR_PICKL
+sys.modules['scripts.layers'] = KOSTIL_FOR_PICKL
+sys.modules['scripts.tokenizer'] = KOSTIL_FOR_PICKL
+
 
 class GenData(BaseModel):
         numb_mol: int =1
@@ -36,7 +42,7 @@ class GenData(BaseModel):
         mean_:float=0
         std_:float=1
         case_ : str = 'RNMD'
-        url:str = "http://10.64.4.247:81"
+        url:str = os.getenv('ML_MODEL_URL')
 
 class TrainData(BaseModel):
         data:dict = None
@@ -48,7 +54,7 @@ class TrainData(BaseModel):
         feature_column:list = ['Smiles']
         path_to_save:str = 'automl/trained_data'
         description:str = 'Unknown case.'
-        url:str = "http://10.64.4.247:81"
+        url:str = os.getenv('ML_MODEL_URL')
         n_samples:int = 1000
         fine_tune:bool = True
         new_vocab:bool = False
@@ -89,7 +95,7 @@ def case_trainer(data:TrainData=Body()):
     try:
         if data.data is not None:
                     df = pd.DataFrame(data.data)
-                    data.data_path = f"autotrain/data/{data.case}"
+                    data.data_path = f"infrastructure/generative_models/autotrain/data/{data.case}"
                     if not os.path.isdir(data.data_path):
                         os.mkdir(data.data_path)
                     data.data_path = data.data_path + '/data.csv'
@@ -104,8 +110,8 @@ def case_trainer(data:TrainData=Body()):
         
     
         if data.fine_tune==True:
-            load_weights = 'autotrain/train_Alzheimer_1_prop/Alzheimer_1_prop'
-            load_weights_fields = 'autotrain/train_Alzheimer_1_prop/Alzheimer_1_prop'
+            load_weights = 'infrastructure/generative_models/autotrain/many_prop_CVAE/Alzheimer_1_prop/weights'
+            load_weights_fields = 'infrastructure/generative_models/autotrain/many_prop_CVAE/Alzheimer_1_prop/weights'
             data.new_vocab = False
         else:
             load_weights=None
@@ -123,7 +129,7 @@ def case_trainer(data:TrainData=Body()):
         main(epochs=data.epochs,
             conditions = state(data.case,'ml')['target_column'],
             case=data.case, 
-            server_dir = f'autotrain/train_{data.case}',
+            server_dir = f'infrastructure/generative_models/autotrain/train_{data.case}',
             data_path_with_conds = data.data_path,
             test_mode=test_mode,
             state=state,
@@ -205,8 +211,12 @@ def gan_auto_generator(data:GenData=Body()):
     print(sys.path)
     state = TrainState(state_path='infrastructure/generative_models/autotrain/utils/state.json')
 
-    with open(state(data.case_,'gen')['weights_path']+'/gan_weights.pkl', "rb") as f:
-        gan_mol = pickle.load(f)
+    try:
+        with open(state(data.case_,'gen')['weights_path']+'/gan_weights.pkl', "rb") as f:
+            gan_mol = pickle.load(f)
+    except:
+         gan_mol = pickle.load(open('infrastructure/generative_models/GAN/gan_lstm_refactoring/weights/v4_gan_mol_124_0.0003_8k.pkl', 'rb'))
+    
     gan_mol.eval()
     samples = gan_mol.generate_n(data.numb_mol)
     valid_mols = state()["Calculateble properties"]['Validity'](samples)
@@ -219,12 +229,18 @@ def gan_auto_generator(data:GenData=Body()):
     props['Validity'] = VALID
     props["Duplicates"] = DYPLICATES
     print(props)
-    if state(data.case_,'ml')['status'] == 'Trained':
-        ml_props = predict_smiles(valid_mols,data.case_,url=os.getenv('ML_MODEL_URL'))
+    print(os.getenv('ML_MODEL_URL'))
+    try:
+        if state(data.case_,'ml')['status'] == 'Trained':
+            ml_props = predict_smiles(valid_mols,data.case_,url=os.getenv('ML_MODEL_URL'))
+            for key,value in ml_props.items():
+                props[key]=value
+    except:
+        ml_props = predict_smiles(valid_mols,'Base',url=os.getenv('ML_MODEL_URL'))
         for key,value in ml_props.items():
-            props[key]=value 
+            props[key]=value
     df = pd.DataFrame(data = {'Smiles':valid_mols,**props})
-    return df.to_dict()
+    return df.to_dict('list')
     #return samples
 
 
@@ -236,10 +252,11 @@ def auto_generator(data:TrainData=Body()):
         gen_dict = main_generate(epochs=data.epochs,
                 conditions = state(data.case,'ml')['target_column'],
                 case=data.case, 
-                server_dir = f'autotrain/train_{data.case}',
+                server_dir = f'infrastructure/generative_models/autotrain/train_{data.case}',
                 test_mode=False,
                 state=state,
                 url=data.url,
+                ml_model_url= data.url,
                 n_samples = data.n_samples,
                 load_weights=state(data.case,'gen')['weights_path'],
                 load_weights_fields = state(data.case,'gen')['weights_path'],
