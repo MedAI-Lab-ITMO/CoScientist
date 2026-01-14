@@ -1,6 +1,7 @@
 import base64
 import os
 import subprocess
+import time
 import pikepdf
 
 from ChemCoScientist.chemical_utils.openchemie_functions import extract_molecules_from_figure
@@ -142,7 +143,12 @@ def simple_query_llm(model_url: str, question: str, pdfs: list, img_descriptions
         HumanMessage(content=content)
     ]
     
-    res = llm.invoke(messages)
+    for attempt in range(3):
+        try:
+            res = llm.invoke(messages)
+        except Exception as e:
+            print(f"LLM query error: {str(e)}. Retrying ({attempt + 1}/3)")
+            time.sleep(1.2 ** attempt)
     return {'answer': res.content}
 
 
