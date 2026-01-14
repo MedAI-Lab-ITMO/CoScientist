@@ -40,7 +40,8 @@ dependencies = [
     "openpyxl (>=3.1.5,<4.0.0)",
     "et-xmlfile (>=2.0.0,<3.0.0)",
     "streamlit-image-zoom (==0.0.4)",
-    "PyMuPDF (==1.26.6)"
+    "PyMuPDF (==1.26.6)",
+    "pikepdf (>=10.2.0,<11.0.0)"
 ]
 
 [build-system]
