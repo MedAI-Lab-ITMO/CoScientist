@@ -482,7 +482,7 @@ def display_paper_analysis_metadata(message, message_index):
     paper_analysis = message["paper_analysis"]
 
     if "dataset" in paper_analysis.keys():
-        display_dataset(paper_analysis.get("dataset"), message_index)
+        display_dataset(paper_analysis.get("dataset"))
 
     if "images_path" in paper_analysis.keys():
         if st.button("Check extracted compounds"):
