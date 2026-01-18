@@ -354,11 +354,6 @@ def paper_analysis_agent(state: dict, config: dict) -> Command:
 
     task = state["task"]
 
-    # TODO: update this when proper frontend is added
-    # current_prompt = f'{paper_agent_prompt}\n session_id = {config["configurable"]["session_id"]}'
-    # except:
-    #     current_prompt = f'{paper_agent_prompt}\nsession_id is not needed in this case, pass None'
-
     paper_analysis_agent = create_react_agent(
         llm, paper_analysis_tools, state_modifier=paper_agent_prompt
     )
@@ -426,12 +421,6 @@ def chem_ocr_agent(state: dict, config: dict) -> Command:
     llm: BaseChatModel = config["configurable"]["llm"]
 
     task = state["task"]
-
-    # TODO: update this when proper frontend is added
-    # try:
-    #     current_prompt = f'{chem_ocr_prompt}\n session_id = {config["configurable"]["session_id"]}'
-    # except:
-    #     current_prompt = f'{chem_ocr_prompt}\nsession_id is not needed in this case, pass None'
 
     chem_ocr_agent = create_react_agent(
         llm, chem_ocr_tools, state_modifier=chem_ocr_prompt
