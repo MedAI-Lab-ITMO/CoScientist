@@ -118,7 +118,7 @@ def reorder_columns(df: pd.DataFrame) -> pd.DataFrame:
     return df[new_order]
 
 
-def extract_mols_prop_dataset(model_url: str, question: str, pdfs: list, session_id: str) -> (str, str):
+def extract_mols_prop_dataset(model_url: str, question: str, pdfs: list, session_id: str) -> (Path, Path):
     """
     Extracts a dataset with molecular SMILES and properties from PDF documents
     by calling the OpenChemIE tool and quering a language model. It returns the resulting dataset
@@ -136,7 +136,7 @@ def extract_mols_prop_dataset(model_url: str, question: str, pdfs: list, session
                     path to the processed PDF pages with bounding boxes around extracted
                     molecular structures..
     """
-    res_img_path = f'{ROOT_DIR}/{os.environ.get("IMG_STORAGE_PATH")}/paper_images/{session_id}/{uuid.uuid4()}'
+    res_img_path = ROOT_DIR / os.environ.get("IMG_STORAGE_PATH") / "paper_images" / session_id / str(uuid.uuid4())
     final_dataset_path = Path(res_img_path, "final_dataset.csv")
     all_datasets = []
     for pdf in pdfs:

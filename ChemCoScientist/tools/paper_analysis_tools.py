@@ -5,6 +5,7 @@ import pandas as pd
 
 from dotenv import load_dotenv
 from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_core.runnables import RunnableConfig
 from langchain.tools.render import render_text_description
 from langchain_core.tools import tool
 from protollm.connectors import create_llm_connector
@@ -53,7 +54,7 @@ def explore_chemistry_database(task: str) -> dict:
 
 
 @tool
-def explore_my_papers(task: str, session_id: str = "1") -> dict:
+def explore_my_papers(task: str, config: RunnableConfig) -> dict:
     """
     Answers questions based on the content of user-provided scientific papers. 
     This tool allows users to query specific documents they've uploaded, retrieving insights 
@@ -73,6 +74,8 @@ def explore_my_papers(task: str, session_id: str = "1") -> dict:
     """
     print('Running explore_my_papers tool...')
     print(f'task: {task}')
+
+    session_id = config.get("configurable", {}).get("session_id", "1")
     try:
         # TODO: remove when proper frontend is added
         if not SELECTED_PAPERS:
@@ -158,7 +161,7 @@ def select_papers(query: str, papers_num: int = 15, final_papers_num: int = 3) -
         return {'answer': 'Could not find any papers in DB.'}
 
 @tool
-def create_dataset_from_papers(task: str, session_id: str = None) -> pd.DataFrame:
+def create_dataset_from_papers(task: str, config: RunnableConfig) -> pd.DataFrame:
     """
     Creates a structured molecular property dataset from a collection of research papers (PDFs).
 
@@ -167,7 +170,7 @@ def create_dataset_from_papers(task: str, session_id: str = None) -> pd.DataFram
             Examples:
                 - "Extract MIC values for all compounds against Staphylococcus aureus"
                 - "Create a dataset of compounds with reported solubility and melting point"
-        session_id (str, optional): An identifier for the current user session.
+        session_id (str): An identifier for the current user session.
             Used to access session-specific uploaded papers from `SELECTED_PAPERS`.
 
     Returns:
@@ -178,8 +181,9 @@ def create_dataset_from_papers(task: str, session_id: str = None) -> pd.DataFram
                 'units' - units of the extracted property
                 `source` — filename of the originating paper
     """
-    print('Running create_dataset_from_papers tool...')
-    print(f'task: {task}')
+    logger.info('Running create_dataset_from_papers tool...')
+    logger.info(f'task: {task}')
+    session_id = config.get("configurable", {}).get("session_id", "1")
     try:
         # TODO: remove when proper frontend is added
         if not SELECTED_PAPERS:
@@ -196,7 +200,7 @@ def create_dataset_from_papers(task: str, session_id: str = None) -> pd.DataFram
         final_dataset_path, res_img_path = extract_mols_prop_dataset(VISION_LLM_URL, task, papers, session_id)
         return {"answer": "This is the retrieved data:",
                 "metadata": {"dataset": str(final_dataset_path),
-                             "images_path": res_img_path}}
+                             "images_path": str(res_img_path)}}
     except Exception as e:
         logger.error(f'create_dataset_from_papers ERROR: {e}')
         return {'answer': 'Could not extract any data from uploaded papers.'}

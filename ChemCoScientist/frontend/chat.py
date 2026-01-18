@@ -402,7 +402,7 @@ def message_handler(user_query: str, placeholder: st.delta_generator.DeltaGenera
                         st.session_state.messages[-1]["chem_ocr"] = result["metadata"]["chem_ocr"]
                         # Display the metadata immediately after storing it
                         message_index = len(st.session_state.messages) - 1
-                        display_chem_ocr_metadata(st.session_state.messages[-1], message_index)
+                        display_chem_ocr_metadata(st.session_state.messages[-1])
 
                 if mols := msg.get("molecules_vis"):
                     for mol in mols:
