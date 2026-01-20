@@ -10,7 +10,8 @@ from langchain_openai import ChatOpenAI
 
 from MedCoScientist.agents.agents import (
     hypothesis_pico_agent,
-    related_pubmed_literature_agent
+    related_pubmed_literature_agent,
+    image_analyzer_agent
 )
 
 conf = {
@@ -33,15 +34,18 @@ conf = {
         "scenario_agents": [
             "hypothesis_pico_agent",
             "related_pubmed_literature_agent",
+            'image_analyzer_agent'
         ],
         # nodes for scenario agents
         "scenario_agent_funcs": {
             "hypothesis_pico_agent": hypothesis_pico_agent,
             "related_pubmed_literature_agent": related_pubmed_literature_agent,
+            'image_analyzer_agent': image_analyzer_agent
         },
         # descripton for agents tools - if using langchain @tool
         # or description of agent capabilities in free format
         "tools_for_agents": {
+            'image_analyzer_agent': 'This agent must be given symptoms described by a user. It can and should process images'
             # "hypothesis_pico_agent": [pico_tools_rendered],
             # "related_pubmed_literature_agent": [pubmed_tools_rendered],
         },
@@ -83,6 +87,7 @@ conf = {
                     5. Avoid unnecessary decomposition — only split when separate agents are required or there are dependencies.
                     6. Keep logical order and coherence between subtasks.
                     7. You must include all information you see in user prompt to your plan
+                    8. Anything related to proccessing and estimating of MRI images must be proccessed in one task. Include in this task all the symptoms given by user
                     """,
                 "desc_restrictions": """
                     - You cant name agents
@@ -129,7 +134,7 @@ conf = {
             "chat": {
                 "problem_statement": None,
                 "additional_hints": """
-                You are a medical research assistance agent system. Your language is Russian. You can do the following:
+                You are a medical research assistance agent system. Your language is English. You can do the following:
                 - extract PICO representation from a hypothesis
                 - retrieve relevant literature from PubMed
                 If user ask something like "What can you do" - make answer yourself!
@@ -137,7 +142,7 @@ conf = {
             },
             "summary": {
                 "problem_statement": """Your task is to compose the **final answer** for the user, based on 
-                    `system_response` and `intermediate_thoughts`. Your language is Russian. Your goal is to ensure that the 
+                    `system_response` and `intermediate_thoughts`. Your language is Enlgish. Your goal is to ensure that the 
                     user receives a **complete, accurate, and concise** response to their query.""",
                 "rules": """Your response must be the **direct and final answer** to the user’s query.
                     - Do **not** describe what was done — instead, **present what was achieved**.  

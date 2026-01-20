@@ -284,6 +284,9 @@ class MemoryGraph(HybridMemoryManager):
         self.graph = GraphBuilder(config)
         self.k = k
 
+    def update_conf(self, key, value):
+        self.graph.conf['configurable'][key] = value
+
     async def stream(self, inputs: dict, image_path: str = "", user_id: str = "1") -> \
             AsyncGenerator[Dict[str, Any], None]:
         user_text = inputs.get('input')

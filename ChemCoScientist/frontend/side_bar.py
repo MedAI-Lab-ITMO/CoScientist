@@ -562,8 +562,8 @@ def _render_image_uploader():
             with st.expander("Choose image files"):
                 with st.form(key="image_files_form", border=False):
                     st.file_uploader(
-                        "Upload an image of nanomaterial for analysis",
-                        type=["png", "jpg", "jpeg", "tiff"],
+                        "Upload an image for analysis",
+                        type=["png", "jpg", "jpeg", "tiff", 'dcm'],
                         accept_multiple_files=True,
                         key="images_file_uploader",
                         label_visibility="collapsed",
@@ -577,8 +577,8 @@ def _render_image_uploader():
             with st.expander("Выберите файлы"):
                 with st.form(key="image_files_form", border=False):
                     st.file_uploader(
-                        "Загрузите изображения наноматериалов для анализа",
-                        type=["png", "jpg", "jpeg", "tiff"],
+                        "Загрузите изображения для анализа",
+                        type=["png", "jpg", "jpeg", "tiff", 'dcm'],
                         accept_multiple_files=True,
                         key="images_file_uploader",
                         label_visibility="collapsed",
@@ -605,6 +605,7 @@ def load_images():
 
     if files:
         images_b64 = []
+        images_path = []
         os.makedirs(os.path.join(ROOT_DIR, os.environ["IMG_STORAGE_PATH"]), exist_ok=True)
 
         for image in files:
@@ -616,13 +617,17 @@ def load_images():
                 f.write(image.getbuffer())
 
             print('IMAGE SAVED')
-            image_b64 = convert_to_base64(image)
-            images_b64.append(image_b64)
+            if not file_path.endswith('dcm'):
+                image_b64 = convert_to_base64(image)
+                images_b64.append(image_b64)
+
+            images_path.append(file_path)
 
         # st.session_state.images = files
         st.session_state.images_b64 = images_b64
-        st.session_state.images = file_path
+        st.session_state.images = images_path
         st.toast(f"Successfully loaded images", icon="✅")
+        #st.toast(f"{images_path}", icon="✅")
 
 
 def side_bar(backend='ChemCoScientis'):

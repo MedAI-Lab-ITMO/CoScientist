@@ -68,36 +68,40 @@ def chat():
                         st.markdown(step)
             # st.markdown(message['content'])
 
+            if imgs := message.get("user_imgs"):  # render previously submitted images
+                for img in imgs:
+                    st.components.v1.html(convert_to_html(img), height=400)
+
             if message.get("automl_results"):
                 st.markdown(message["content"])
                 st.markdown(message["automl_results"])
             else:
                 st.markdown(message["content"])
 
+
             if message.get('found_pubmed_papers'):
                 papers = message.get('found_pubmed_papers')
-                st.subheader("Список найденных статей:")
+                st.subheader("List of found papers:")
 
-                for idx, paper in enumerate(papers):
+                for idx, paper_data in enumerate(papers):
+                    paper = paper_data['paper']
+                    taxonomy = paper_data['taxonomy']
+                    pico = paper_data['pico']
                     with st.expander(
                         f"{idx+1}. {paper.title}", expanded=False
                     ):
 
                         authors = ', '.join(paper.authors)
-                        st.markdown(f"**Авторы:** {authors}")
-                        st.markdown(f"**Год:** {paper.year}")
-                        st.markdown(f"**Журнал:** {paper.journal}")
-                        st.markdown(f"**Аннотация:** {paper.abstract}")
+                        st.markdown(f"**Authors:** {authors}")
+                        st.markdown(f"**Year:** {paper.year}")
+                        st.markdown(f"**Journal:** {paper.journal}")
+                        st.markdown(f"**Annotation:** {paper.abstract}")
                         
-                        if paper.link:
-                            st.markdown(f"[Перейти к статье]({paper.link})")
+                        # if paper.link:
+                        #     st.markdown(f"[Перейти к статье]({paper.link})")
 
 
             gen_imgs = message.get("images_generated")
-
-            # if imgs := message.get("image_urls"):  # render previously submitted images
-            #     for img in imgs:
-            #         st.components.v1.html(convert_to_html(img), height=400)
 
             if mols := message.get(
                 "molecules_vis"
@@ -126,7 +130,7 @@ def chat():
         st.session_state.messages.append({"role": "user", "content": user_text})
         message_handler(user_text, streaming_placeholder)
         # When finished, force rerun so chat history + input re-render in correct order
-        st.rerun()
+       #st.rerun()
 
 
 def message_handler(user_query: str, placeholder: st.delta_generator.DeltaGenerator):
@@ -148,26 +152,32 @@ def message_handler(user_query: str, placeholder: st.delta_generator.DeltaGenera
 
     try:
         images = st.session_state.images_b64
+        images_path = st.session_state.images
 
-        config = {
-            "recursion_limit": 30,
-            "configurable": {
-                "img_path": images,
-            },
-        }
+        # config = {
+        #     "recursion_limit": 30,
+        #     "configurable": {
+        #         "img_path": images_path,
+        #     },
+        # }
+        # st.s
 
-        if st.session_state.uploaded_files:
-            save_all_files(st.session_state.user_data_dir)
-            config["configurable"]["user_data_dir"] = st.session_state.user_data_dir
+        # if st.session_state.uploaded_files:
+        #     save_all_files(st.session_state.user_data_dir)
+        #     config["configurable"]["user_data_dir"] = st.session_state.user_data_dir
 
         inputs = {"input": user_query}
         # add path to users image from gui
-        if st.session_state.images:
-            inputs["attached_img"] = st.session_state.images
+
+        if images_path:
+            inputs["attached_img"] = images_path
 
         with placeholder.container():
             with st.chat_message("user"):
                 st.markdown(user_query)
+                if images:
+                    for img in images:
+                        st.components.v1.html(convert_to_html(img), height=400)
 
             with st.spinner("Give me a moment..."):
                 st.session_state.messages.append(
@@ -285,9 +295,11 @@ def message_handler(user_query: str, placeholder: st.delta_generator.DeltaGenera
 
             if st.session_state.images_b64:  # get user's submitted images
                 st.session_state.messages[-1][
-                    "image_urls"
+                    "user_imgs"
                 ] = st.session_state.images_b64
                 st.session_state.images_b64 = None
+                st.session_state.images = None
+
 
             path_to_molecules = os.path.join(
                 os.environ.get("PATH_TO_RESULTS"), "vis_mols"
@@ -339,35 +351,50 @@ def message_handler(user_query: str, placeholder: st.delta_generator.DeltaGenera
                 if result.get('metadata'):
                     
                     papers = result['metadata']
-                    print(papers)
-
                     paper_key = 'found_papers_' + user_query
 
-                    if papers.get(paper_key):
-                        st.subheader("Список найденных статей:")
+                    papers_dict = papers.get(paper_key, {})
+                    num_papers = len(papers_dict)
+
+                    logger.info(papers)
+                    logger.info(papers_dict)
+
+                    if papers_dict:
+                        st.subheader("List of found papers:")
 
                     st.session_state.messages[-1]['found_pubmed_papers'] = []
 
-                    for idx, paper in enumerate(papers.get(paper_key, [])):
+                    for idx in range(num_papers):
+                        paper_data = papers_dict[idx]
+                        paper = paper_data['paper']
+                        taxonomy = paper_data['taxonomy']
+                        pico = paper_data['pico']
+
                         with st.expander(
                             f"{idx+1}. {paper.title}", expanded=False
                         ):
 
                             authors = ', '.join(paper.authors)
-                            st.markdown(f"**Авторы:** {authors}")
-                            st.markdown(f"**Год:** {paper.year}")
-                            st.markdown(f"**Журнал:** {paper.journal}")
-                            st.markdown(f"**Аннотация:** {paper.abstract}")
+                            st.markdown(f"**Authors:** {authors}")
+                            st.markdown(f"**Year:** {paper.year}")
+                            st.markdown(f"**Journal:** {paper.journal}")
 
-                            if paper.link:
-                                st.markdown(f"[Перейти к статье]({paper.link})")
+                            filtered_tax = ', '.join(f"**{tax[0]}**: {tax[1]}" for tax in taxonomy if tax and tax[0] is not None and tax[1] is not None)
+                            if len(filtered_tax)>0:
+                                st.markdown(f"**Taxonomy**: {filtered_tax}")
 
-                            st.session_state.messages[-1]['found_pubmed_papers'].append(paper)
+                            pico_fields = pico.model_fields_set
+                            pico_lines = [f"**{field}**: {getattr(pico, field)}\n" 
+                                        for field in pico_fields 
+                                        if getattr(pico, field, None) is not None]
 
-                # ATTENTION: RENDER IMG FOR USER
-                if imgs := msg.get("image_urls"):
-                    for img in imgs:
-                        st.components.v1.html(convert_to_html(img), height=400)
+                            pico_info = "\n\n".join(pico_lines)
+                            st.markdown(f"**Pico decomposition**:\n\n{pico_info}")
+
+                            st.markdown(f"**Annotation:** {paper.abstract}")
+                            st.session_state.messages[-1]['found_pubmed_papers'].append(paper_data)
+
+
                 if "metadata" in result.keys():
                     if "dataset_builder_agent" in result["metadata"].keys():
                         st.markdown("### Dataset Builder Agent Results")

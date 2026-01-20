@@ -5,25 +5,38 @@ import pandas as pd
 from PIL import Image
 
 
-def convert_to_base64(image_file_path):
-    """
-    Convert an image file to a Base64 encoded string.
+# def convert_to_base64(image_file_path):
+#     """
+#     Convert an image file to a Base64 encoded string.
     
-        :param image_file_path: Path to the image file.
-        :return: Base64 encoded string of the image.
+#         :param image_file_path: Path to the image file.
+#         :return: Base64 encoded string of the image.
     
-        This method facilitates image processing by converting them into a string representation 
-        suitable for storage or transmission, ensuring compatibility across different systems 
-        and avoiding potential data loss during transfer. It achieves this by temporarily 
-        saving the image to a file, encoding it, and then removing the temporary file.
-    """
-    pil_image = Image.open(image_file_path)
-    pil_image.save("tmp.png", format="png")
+#         This method facilitates image processing by converting them into a string representation 
+#         suitable for storage or transmission, ensuring compatibility across different systems 
+#         and avoiding potential data loss during transfer. It achieves this by temporarily 
+#         saving the image to a file, encoding it, and then removing the temporary file.
+#     """
+#     pil_image = Image.open(image_file_path)
+#     pil_image.save("tmp.png", format="png")
 
-    with open("tmp.png", "rb") as image_file:
-        result = base64.b64encode(image_file.read()).decode("utf-8")
-        os.remove("tmp.png")
-        return result
+#     with open("tmp.png", "rb") as image_file:
+#         result = base64.b64encode(image_file.read()).decode("utf-8")
+#         os.remove("tmp.png")
+#         return result
+
+def convert_to_base64(file_path_or_file):
+    """
+    Convert any binary file (including DICOM) to base64 string.
+    """
+
+    if hasattr(file_path_or_file, "read"):  # UploadedFile / file-like
+        data = file_path_or_file.read()
+    else:
+        with open(file_path_or_file, "rb") as f:
+            data = f.read()
+
+    return base64.b64encode(data).decode("utf-8")
 
 
 def convert_to_html(img_base64):
