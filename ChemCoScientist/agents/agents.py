@@ -19,10 +19,10 @@ from ChemCoScientist.agents.agents_prompts import (
     worker_prompt,
     chem_ocr_prompt
 )
-from ChemCoScientist.tools import chem_tools, nanoparticle_tools, paper_analysis_tools, data_tools, chem_ocr_tools
+from ChemCoScientist.tools import chem_tools, nanoparticle_tools, paper_analysis_tools, data_tools, chem_ocr_tools, download_papers_tools
 from ChemCoScientist.tools.ml_tools import agents_tools as automl_tools
 
-from ChemCoScientist.agents.agents_prompts import paper_agent_prompt, coder_prompt
+from ChemCoScientist.agents.agents_prompts import paper_agent_prompt, coder_prompt, download_papers_prompt
 from definitions import ROOT_DIR
 
 
@@ -459,3 +459,74 @@ def chem_ocr_agent(state: dict, config: dict) -> Command:
         "response": "I cannot extract molecules or reactions right now."
                     "Can I help with something else?"
     })
+
+
+def download_papers_agent(state: dict, config: dict) -> Command:
+    """
+    Searches for scientific papers based on user query and downloads their PDFs.
+
+    This agent utilizes the OpenAlex API and PaperScraper to find and download 
+    PDFs of scientific papers relevant to the user's specified topic or query.
+
+    Args:
+        state (dict): The current state of the interaction, including the user's task.
+        config (dict): Configuration settings, including the language model to use.
+
+    Returns:
+        Command: An object containing the next step in the process ('replan' or `END`) and
+        updates to the state, including recorded steps, responses, and extracted metadata.
+    """
+    print("--------------------------------")
+    print("Papers download agent called")
+    print(f"Current task: {state['task']}")
+    print(f"Current input: {state['input']}")
+    print("--------------------------------")
+
+    llm: BaseChatModel = config["configurable"]["llm"]
+
+    task = state["task"]
+
+    # TODO: update this when proper frontend is added
+    try:
+        current_prompt = f'{download_papers_prompt}\n session_id = {config["configurable"]["session_id"]}'
+    except:
+        current_prompt = f'{download_papers_prompt}\nsession_id is not needed in this case, pass 1'
+
+    download_papers_agent = create_react_agent(
+        llm, download_papers_tools, state_modifier=current_prompt
+    )
+
+    for attempt in range(3):
+        try:
+            response = download_papers_agent.invoke({"messages": [("user", task)]})
+
+            result = ast.literal_eval(response["messages"][2].content)
+            
+            answer_serialized = json.dumps(result["answer"], sort_keys=True)
+
+            updated_metadata = state.get("metadata", {}).copy()
+            downloaded_papers_metadata = {"downloaded_papers": result.get("metadata", None)}
+            if downloaded_papers_metadata["downloaded_papers"]:
+                if "downloaded_papers" in updated_metadata.keys():
+                    updated_metadata["downloaded_papers"].update(downloaded_papers_metadata["downloaded_papers"])
+                else:
+                    updated_metadata.update(downloaded_papers_metadata)
+
+            return Command(update={
+                "past_steps": Annotated[set, operator.or_](set([
+                    (task, answer_serialized)
+                ])),
+                "nodes_calls": Annotated[set, operator.or_](set([
+                    ("download_papers_agent", (("text", answer_serialized),))
+                ])),
+                "metadata": Annotated[dict, operator.or_](updated_metadata),
+            })
+        except Exception as e:
+            print(f"Download papers agent error: {str(e)}. Retrying ({attempt + 1}/3)")
+            time.sleep(1.2 ** attempt)
+
+    return Command(goto=END, update={
+        "response": "I cannot download papers right now."
+                    "Can I help with something else?"
+    })
+

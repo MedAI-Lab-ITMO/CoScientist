@@ -31,12 +31,23 @@ import conf.create_conf as cc
 
 # Paper analysis
 # inputs = {"input": "How does the synthesis of Glionitrin A/B happen?"}
+# inputs['input'] = inputs.get('input', '') + " Only use the files provided by the user to answer " \
+#                                                                 "the question. You can only use one of these tools:" \
+#                                                                 "create_dataset_from_papers or " \
+#                                                                 "explore_my_papers tools from paper_analysis_agent. " \
+#                                                                 "use create_dataset_from_papers when the user asks " \
+#                                                                 "to create/collect a dataset," \
+#                                                                 "use explore_my_papers when the user has a question " \
+#                                                                 "about chemistry or about uploaded files/papers"
 # inputs = {"input": "How does the calculated spin-wave spectrum of Cu₂(OH)₃X vary as the halide (X) is changed from Cl to Br to I, particularly concerning the bandwidth in the interchain direction?"}
 inputs = {"input": "Collect a dataset of molecules and their MIC values against Staphylococcus aureus. Only use the create_dataset_from_papers tool"}
 # inputs = {"input": "Расчетное исследование реакций Дильса-Альдера с участием циклопентадиена предлагает классификацию на три типа в зависимости от полярности. Опишите эти три категории, указав их определяющие характеристики с точки зрения переноса заряда (CT) в переходном состоянии и соответствующие активационные барьеры (ΔE‡)."}
 
 # ChemOCR
 # inputs = {"input": "Extract all molecules from these images."}
+
+# Download papers
+inputs = {"input": "Download 3 papers on advances in CRISPR gene editing technology since 2024"}
 
 if __name__ == "__main__":
     graph = GraphBuilder(cc.conf)

@@ -6,6 +6,7 @@ from ChemCoScientist.tools.chemist_tools import chem_tools, chem_tools_rendered,
 from ChemCoScientist.tools.nano_tools import nano_tools_rendered, nanoparticle_tools
 from ChemCoScientist.tools.paper_analysis_tools import paper_analysis_tools, paper_analysis_tools_rendered
 from ChemCoScientist.tools.chem_ocr_tools import chem_ocr_tools, chem_ocr_tools_rendered
+from ChemCoScientist.tools.download_papers_tools import download_papers_tools, download_papers_tools_rendered
 
 if web_tools:
     tools_rendered = render_text_description(
