@@ -14,18 +14,29 @@ from rdkit.Chem.Descriptors import CalcMolDescriptors
 from typing import Dict, List, Optional
 #from smolagents import tool
 from langchain_core.tools import tool
-
+from definitions import CONFIG_PATH
+from pathlib import Path
+from dotenv import load_dotenv
+from ChemCoScientist.chemical_utils.ocr_pipeline import molecules_ocr, reactions_ocr
+from ChemCoScientist.chemical_utils.chemical_functions import calculate_docking_score
 
 import aiohttp
+import base64
 import asyncio
 import json
 import re
 import pandas as pd
 from io import StringIO
+import logging
+
+load_dotenv(CONFIG_PATH)
 
 CHEMBL_BASE = "https://www.ebi.ac.uk/chembl/api/data"
 VALID_AFFINITY_TYPES = {"Ki", "Kd", "IC50", "EC50"}
 repl = PythonREPL()
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 def _run_async(coro):
@@ -75,7 +86,7 @@ async def fetch_uniprot_id(
         except asyncio.CancelledError:
             raise
         except Exception as e:
-            print(f"[UniProt] Attempt {attempt+1} failed: {str(e)}")
+            logger.error(f"[UniProt] Attempt {attempt+1} failed: {str(e)}")
             await asyncio.sleep(delay * (1 + attempt * 0.5))
     return None
 
@@ -103,7 +114,7 @@ async def fetch_affinity_bindingdb(
         try:
             async with session.get(url, timeout=aiohttp.ClientTimeout(total=60)) as resp:
                 if resp.status != 200:
-                    print(f"[BindingDB] HTTP {resp.status} for {uniprot_id}, retrying...")
+                    logger.error(f"[BindingDB] HTTP {resp.status} for {uniprot_id}, retrying...")
                     await asyncio.sleep(delay * (1 + attempt * 0.5))
                     continue
                 data = json.loads(await resp.text())
@@ -121,7 +132,7 @@ async def fetch_affinity_bindingdb(
         except asyncio.CancelledError:
             raise
         except Exception as e:
-            print(f"[BindingDB] Attempt {attempt+1} failed: {str(e)}")
+            logger.error(f"[BindingDB] Attempt {attempt+1} failed: {str(e)}")
             await asyncio.sleep(delay * (1 + attempt * 0.5))
     return []
 
@@ -181,6 +192,7 @@ async def _resolve_chembl_target_id(
 
     return ""
 
+
 def _normalize_activities(activities, target_id, affinity_type):
     out = []
     for act in activities:
@@ -194,6 +206,7 @@ def _normalize_activities(activities, target_id, affinity_type):
             "target_id": target_id
         })
     return out
+
 
 async def _fetch_chembl_activity_async(
     session: aiohttp.ClientSession,
@@ -266,6 +279,7 @@ async def _fetch_chembl_activity_async(
         results = results[:desired_total]
 
     return results   
+
 
 async def fetch_chembl_data(
     target_name: str,
@@ -419,6 +433,7 @@ def python_repl_tool(
     return result_str
 
 
+#TODO: Remove this tool, it is not used
 @tool
 def calc_prop_tool(
     smiles: Annotated[str, "The SMILES of a molecule"],
@@ -593,11 +608,124 @@ def visualize_molecule(
         return f"Failed to execute. Error: {repr(e)}"
 
 
+#TODO: Implement session_id logic
+@tool
+def detect_molecules(session_id: Optional[str] = None) -> Dict:
+    """
+    Detects molecular structures in uploaded images and converts
+    them into SMILES format using the `molecules_ocr` pipeline.
+
+    The tool retrieves image paths either from:
+    - `SELECTED_PAPERS[session_id]` if a session is active, or
+    - an OCR input directory defined by the `OCR_IMAGES_PATH` environment
+      variable.
+
+    Parameters
+    ----------
+    session_id (str, optional): An identifier for the current user session.
+            Used to access session-specific uploaded papers from `SELECTED_PAPERS`.
+
+    Returns
+    -------
+    dict
+        On success:  
+        - A dictionary returned by `molecules_ocr`, mapping image filenames to lists
+        of extracted SMILES strings.
+        - An annotated image saved by `molecules_ocr` for each input image as <original_name>_annotated.jpg,
+        containing bounding boxes around detected molecules.
+
+        On failure or if no images are available:  
+        A dictionary containing an `"answer"` key with an explanatory message.    
+    """    
+    logging.info('Running extract_molecules tool...')
+    try:
+        directory = Path(os.environ.get('IMG_STORAGE_PATH'))
+        images = [str(f.resolve()) for f in directory.iterdir() if f.is_file() and f.suffix.lower() == '.jpg']
+        if not images:
+            return {'answer': 'No images provided for molecules recognition.'}
+        return molecules_ocr(images)
+    except Exception as e:
+        logger.error(f'molecules_recognition ERROR: {e}')
+        return {'answer': 'Could not detect any molecules in the uploaded images.'}
+
+
+@tool
+def detect_reactions(session_id: Optional[str] = None) -> Dict:
+    """
+    Detects chemical reactions in uploaded images and converts
+    them into structured reaction elements format using the `reactions_ocr` pipeline.
+
+    The tool retrieves image paths either from:
+    - `SELECTED_PAPERS[session_id]` if a session is active, or
+    - an OCR input directory defined by the `OCR_IMAGES_PATH` environment
+      variable.
+
+    Parameters
+    ----------
+    session_id (str, optional): An identifier for the current user session.
+            Used to access session-specific uploaded papers from `SELECTED_PAPERS`.
+
+    Returns
+    -------
+    dict
+        On success:  
+        - A dictionary returned by `reactions_ocr`, mapping image filenames to
+        extracted reactants, conditions and products.
+        - An annotated image saved by `reactions_ocr` for each input image as <original_name>_annotated.jpg
+        containing bounding boxes around detected reaction elements.
+
+        On failure or if no images are available:  
+        A dictionary containing an `"answer"` key with an explanatory message.    
+    """    
+    logging.info('Running extract_reactions tool...')
+    try:
+        directory = Path(os.environ.get('IMG_STORAGE_PATH'))
+        images = [str(f.resolve()) for f in directory.iterdir() if f.is_file() and f.suffix.lower() == '.jpg']
+        if not images:
+            return {'answer': 'No images provided for reactions recognition.'}
+        return reactions_ocr(images)
+    except Exception as e:
+        logger.error(f'reactions_recognition ERROR: {e}')
+        return {'answer': 'Could not detect any reactions in the uploaded images.'}
+
+
+@tool
+def calculate_docking(smiles: str, pdb_id: str) -> str:
+    """
+    Calculate docking score for a molecule.
+    Response contains docking score for the molecule.
+    Args:
+        smiles (str): SMILES string of the molecule.
+        pdb_id (str): ID of the PDB file containing the receptor structure.
+    Returns:
+        response (dict): Dictionary containing docking score for the molecule and the HTML file.
+    """
+    try:
+        data = calculate_docking_score(smiles, pdb_id)
+        html_base64 = data["visualization"]
+        html_content = base64.b64decode(html_base64)
+        output_file = os.path.join(os.environ.get("PATH_TO_RESULTS"), f"docking_result_{pdb_id}.html")
+        with open(output_file, "wb") as f:
+            f.write(html_content)
+        return {
+            "answer": data["affinity"],
+            "metadata": {
+                "html_file": output_file
+                    }
+            }
+
+    except Exception as e:
+        logger.error(f'molecules_docking ERROR: {e}')
+        return {'answer': 'Could not calculate docking score.'}
+
 chem_tools = [
     name2smiles,
     smiles2name,
     smiles2prop,
     visualize_molecule,
+    detect_molecules,
+    detect_reactions,
+    calculate_docking,
 ]
 
 data_tools = [
