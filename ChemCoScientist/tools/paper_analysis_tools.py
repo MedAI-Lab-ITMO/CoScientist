@@ -182,14 +182,18 @@ def create_dataset_from_papers(task: str, session_id: str = None) -> pd.DataFram
     try:
         # TODO: remove when proper frontend is added
         if not SELECTED_PAPERS:
-            directory = Path(os.environ.get('MY_PAPERS_PATH'))
-            papers = [str(f.resolve()) for f in directory.iterdir() if f.is_file() and f.suffix.lower() == '.pdf']
+            my_papers_directory = Path(os.environ.get('MY_PAPERS_PATH'))
+            papers = [str(f.resolve()) for f in my_papers_directory.iterdir() if f.is_file() and f.suffix.lower() == '.pdf']
 
             if not papers:
-                return {'answer': 'No papers provided for search.'}
+                downloaded_papers_directory = Path(os.environ.get('DOWNLOADED_PAPERS_PATH'))
+                papers = [str(f.resolve()) for f in downloaded_papers_directory.iterdir() if f.is_file() and f.suffix.lower() == '.pdf']
+
+                if not papers:
+                    return {'answer': ('No papers provided for search.')}
         else:
             if not SELECTED_PAPERS.get(session_id, []):
-                return {'answer': 'No papers provided for search.'}
+                return {'answer': ('No papers provided for search.')}
             papers = SELECTED_PAPERS[session_id]
 
         final_dataset = extract_mols_prop_dataset(VISION_LLM_URL, task, papers)

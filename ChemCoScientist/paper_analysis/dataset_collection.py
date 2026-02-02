@@ -129,15 +129,23 @@ def extract_mols_prop_dataset(model_url: str, question: str, pdfs: list) -> pd.D
     """
     all_datasets = []
     for pdf in pdfs:
-        images = convert_pdf_pages_to_images(pdf)
-        results = extract_smiles_from_images(images)
-        mols_df = mols_to_csv(results)
-        mols_df['id'] = mols_df['id'].astype(str)
-        props_df = extract_props(model_url, question, [pdf])
-        props_df['id'] = props_df['id'].astype(str)
-        merged_df = pd.merge(props_df, mols_df, on="id", how="inner")
-        merged_df["source"] = os.path.basename(pdf)
-        all_datasets.append(merged_df)
+        try:
+            images = convert_pdf_pages_to_images(pdf)
+            results = extract_smiles_from_images(images)
+            mols_df = mols_to_csv(results)
+            mols_df['id'] = mols_df['id'].astype(str)
+            props_df = extract_props(model_url, question, [pdf])
+            props_df['id'] = props_df['id'].astype(str)
+            merged_df = pd.merge(props_df, mols_df, on="id", how="inner")
+            merged_df["source"] = os.path.basename(pdf)
+            all_datasets.append(merged_df)
+        except Exception as e:
+            print(f"Error processing PDF {pdf}: {e}")
+            print("Skipping this PDF and continuing with others...")
+            continue
+    
+    if not all_datasets:
+        raise ValueError("No PDFs were successfully processed")
         
     combined_dataset = pd.concat(all_datasets, ignore_index=True)
     final_dataset = reorder_columns(combined_dataset)

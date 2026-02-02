@@ -15,10 +15,10 @@ from ChemCoScientist.agents.agents import (
     nanoparticle_node,
     paper_analysis_agent,
     coder_agent,
-    download_papers_agent
+    papers_search_agent
 )
 from ChemCoScientist.tools import chem_tools_rendered, nano_tools_rendered, tools_rendered, data_tools_rendered, \
-    paper_analysis_tools_rendered, download_papers_tools_rendered
+    paper_analysis_tools_rendered
 from definitions import ROOT_DIR
 
 
@@ -63,6 +63,12 @@ Outputs:
 
 Failure handling:
 If no relevant papers are found, state "no match in database" and still run "web_search".
+
+Special behavior for dataset creation:
+- If 'create_dataset_from_papers' is requested but no papers are uploaded:
+  1) Augment the user query to search for relevant papers.
+  2) Automatically invoke 'papers_search_agent' to find relevant papers with augmented query.
+  3) After successful download, retry dataset creation with downloaded papers.
 """
 
 web_search_description = """
@@ -101,8 +107,8 @@ Failure handling:
 - If sources are paywalled, note it and provide accessible alternatives when possible.
 """
 
-download_papers_agent_description = """
-Agent name: download_papers_agent
+papers_search_agent_description = """
+Agent name: papers_search_agent
 
 Purpose:
 Search OpenAlex for relevant scientific papers and download available PDFs, using PaperScraper as a fallback.
@@ -113,7 +119,7 @@ When to activate:
 Procedure:
 1) Use the OpenAlex documentation to generate an API request via the vision LLM.
 2) Fetch results and extract titles, DOIs, and open-access URLs.
-3) Prefer downloading PDFs via OpenAlex `oa_url`; if unavailable or fails, use PaperScraper with DOI.
+3) Prefer downloading PDFs via OpenAlex; if unavailable or fails, use PaperScraper with DOI.
 4) Save files to the configured DOWNLOADED_PAPERS_PATH.
 5) Return a list of successfully downloaded filepaths.
 
@@ -138,7 +144,7 @@ additional_agents_description = (
     + coder_agent_description
     + paper_analysis_agent_description
     + web_search_description
-    + download_papers_agent_description
+    + papers_search_agent_description
 )
 
 conf = {
@@ -162,7 +168,7 @@ conf = {
             "coder_agent",
             "paper_analysis_agent",
             "web_search",
-            "download_papers_agent"
+            "papers_search_agent"
         ],
         # nodes for scenario agents
         "scenario_agent_funcs": {
@@ -173,7 +179,7 @@ conf = {
             "coder_agent": coder_agent,
             "paper_analysis_agent": paper_analysis_agent,
             "web_search": web_search_node,
-            "download_papers_agent": download_papers_agent
+            "papers_search_agent": papers_search_agent
         },
         # descripton for agents tools - if using langchain @tool
         # or description of agent capabilities in free format
@@ -185,7 +191,6 @@ conf = {
             "ml_dl_agent": [automl_agent_description],
             "paper_analysis_agent": [paper_analysis_tools_rendered],
             "web_search": [web_search_description],
-            "download_papers_agent": [download_papers_tools_rendered],
         },
         # full descripton for agents tools
         "tools_descp": tools_rendered + additional_agents_description,

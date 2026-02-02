@@ -40,14 +40,15 @@ import conf.create_conf as cc
 #                                                                 "use explore_my_papers when the user has a question " \
 #                                                                 "about chemistry or about uploaded files/papers"
 # inputs = {"input": "How does the calculated spin-wave spectrum of Cu₂(OH)₃X vary as the halide (X) is changed from Cl to Br to I, particularly concerning the bandwidth in the interchain direction?"}
-# inputs = {"input": "Collect a dataset of molecules and their MIC values against Staphylococcus aureus. Only use the create_dataset_from_papers tool"}
 # inputs = {"input": "Расчетное исследование реакций Дильса-Альдера с участием циклопентадиена предлагает классификацию на три типа в зависимости от полярности. Опишите эти три категории, указав их определяющие характеристики с точки зрения переноса заряда (CT) в переходном состоянии и соответствующие активационные барьеры (ΔE‡)."}
 
 # ChemOCR
 # inputs = {"input": "Extract all molecules from these images."}
 
 # Download papers
-inputs = {"input": "Download 3 papers on advances in CRISPR gene editing technology since 2024"}
+# inputs = {"input": "Download 3 papers on advances in CRISPR gene editing technology since 2024"}
+# inputs = {"input": "Find 3 open access papers about antibacterial activity of oxazolidinone derivatives and download these papers. Then collect a dataset of oxazolidinones and their MIC values against Staphylococcus aureus. Only use the create_dataset_from_papers tool"}
+inputs = {"input": "Сollect a dataset of oxazolidinones and their MIC values against Staphylococcus aureus. Only use the create_dataset_from_papers tool"}
 
 if __name__ == "__main__":
     graph = GraphBuilder(cc.conf)
