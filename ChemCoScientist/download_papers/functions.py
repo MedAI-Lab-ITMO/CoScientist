@@ -7,7 +7,6 @@ import base64
 import logging
 from typing import Dict, List, Any
 
-from paperscraper.pdf import save_pdf
 from protollm.connectors import create_llm_connector, get_allowed_providers
 from langchain_core.messages import SystemMessage, HumanMessage
 from dotenv import load_dotenv
@@ -68,20 +67,6 @@ def download_from_openalex(pdf_url: str, paper_title: str) -> str:
         f.write(response.content)
     print(f"Downloaded: {filepath}")
     return filepath
-        
-        
-def download_from_paperscraper(doi: str, title: str) -> str:
-    """Download a PDF using PaperScraper given a DOI and paper title."""
-    filepath = f'/{sanitize_filename(title)}.pdf'
-    paper_data = {'doi': doi}
-    try:
-        save_pdf(paper_data, filepath=filepath)
-        if not os.path.isfile(filepath) or os.path.getsize(filepath) == 0:
-            raise Exception("Failed to download from PaperScraper")
-        print(f"Downloaded {title} using PaperScraper.")
-        return filepath
-    except Exception as e:
-        raise
 
 
 def generate_openalex_url(query: str) -> Dict[str, Any]:
@@ -97,11 +82,6 @@ def generate_openalex_url(query: str) -> Dict[str, Any]:
 
     res = llm.invoke(messages)
     return res.content
-    
-
-def process_doi(doi: str) -> str:
-    """Extract the DOI from a DOI URL."""
-    return re.sub(r'^https?://(dx\.)?doi\.org/', '', doi)
 
 
 def download_papers(task: str) -> List[str]:
