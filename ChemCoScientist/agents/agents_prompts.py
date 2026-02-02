@@ -116,8 +116,6 @@ sketchy, partial, or ambiguous. When uncertain, infer the most likely structure 
 Never return ‘no molecules detected’—instead describe all candidate structures with confidence scores.
 """
 
-download_papers_prompt = """
-You are a helpful assistant. You can use provided tools. If there is no appropriate tool, or you can't use anyone, 
-answer yourself.
-The most useful tool is 'download_papers_from_web'. Call it to search for and download scientific papers PDFs from web based on a user query
+papers_search_prompt = """
+You are a helpful assistant. You search for papers in OpenAlex based on a user query and download papers' PDFs.
 """

@@ -140,23 +140,24 @@ def extract_mols_prop_dataset(model_url: str, question: str, pdfs: list, session
     final_dataset_path = Path(res_img_path, "final_dataset.csv")
     all_datasets = []
     for pdf in pdfs:
-        print(f"Processing {pdf}")
-        images = convert_pdf_pages_to_images(pdf)
-        print('Finished converting to images')
-        results = extract_smiles_from_images(images)
-        print('Finished extracting smiles')
-        render_molecule_detections(images, results, res_img_path)
-        print('Finished detecting molecules on images')
-        mols_df = mols_to_csv(results)
-        mols_df['id'] = mols_df['id'].astype(str)
-        props_df = extract_props(model_url, question, [pdf])
-        props_df['id'] = props_df['id'].astype(str)
-        merged_df = pd.merge(props_df, mols_df, on="id", how="inner")
-        merged_df["source"] = os.path.basename(pdf)
-        all_datasets.append(merged_df)
-        print('Finished forming dataset for paper')
-        print('________________________________')
-
+        try:
+            images = convert_pdf_pages_to_images(pdf)
+            results = extract_smiles_from_images(images)
+            mols_df = mols_to_csv(results)
+            mols_df['id'] = mols_df['id'].astype(str)
+            props_df = extract_props(model_url, question, [pdf])
+            props_df['id'] = props_df['id'].astype(str)
+            merged_df = pd.merge(props_df, mols_df, on="id", how="inner")
+            merged_df["source"] = os.path.basename(pdf)
+            all_datasets.append(merged_df)
+        except Exception as e:
+            print(f"Error processing PDF {pdf}: {e}")
+            print("Skipping this PDF and continuing with others...")
+            continue
+    
+    if not all_datasets:
+        raise ValueError("No PDFs were successfully processed")
+        
     combined_dataset = pd.concat(all_datasets, ignore_index=True)
     final_dataset = reorder_columns(combined_dataset)
     final_dataset.to_csv(final_dataset_path, sep="\t", index=False)

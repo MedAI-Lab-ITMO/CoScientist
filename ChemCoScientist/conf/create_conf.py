@@ -16,7 +16,7 @@ from ChemCoScientist.agents.agents import (
     paper_analysis_agent,
     coder_agent,
     chem_ocr_agent,
-    download_papers_agent
+    papers_search_agent
 )
 #from CoScientist.scientific_agents.agents import coder_agent
 from ChemCoScientist.tools import chem_tools_rendered, nano_tools_rendered, tools_rendered, data_tools_rendered, \
@@ -65,6 +65,12 @@ Outputs:
 
 Failure handling:
 If no relevant papers are found, state "no match in database" and still run "web_search".
+
+Special behavior for dataset creation:
+- If 'create_dataset_from_papers' is requested but no papers are uploaded:
+  1) Augment the user query to search for relevant papers.
+  2) Automatically invoke 'papers_search_agent' to find relevant papers with augmented query.
+  3) After successful download, retry dataset creation with downloaded papers.
 """
 
 web_search_description = """
@@ -131,8 +137,9 @@ If the image cannot be interpreted or no structures are detected, state
 "no extractable chemistry found" and return an empty result set.
 """
 
-download_papers_agent_description = """
-Agent name: download_papers_agent
+
+papers_search_agent_description = """
+Agent name: papers_search_agent
 
 Purpose:
 Search OpenAlex for relevant scientific papers and download available PDFs, using PaperScraper as a fallback.
@@ -143,7 +150,7 @@ When to activate:
 Procedure:
 1) Use the OpenAlex documentation to generate an API request via the vision LLM.
 2) Fetch results and extract titles, DOIs, and open-access URLs.
-3) Prefer downloading PDFs via OpenAlex `oa_url`; if unavailable or fails, use PaperScraper with DOI.
+3) Prefer downloading PDFs via OpenAlex; if unavailable or fails, use PaperScraper with DOI.
 4) Save files to the configured DOWNLOADED_PAPERS_PATH.
 5) Return a list of successfully downloaded filepaths.
 
@@ -169,7 +176,7 @@ additional_agents_description = (
     + paper_analysis_agent_description
     + web_search_description
     + chem_ocr_agent_description
-    + download_papers_agent_description
+    + papers_search_agent_description
 )
 
 conf = {
@@ -195,7 +202,7 @@ conf = {
             "paper_analysis_agent",
             "web_search",
             "chem_ocr_agent",
-            "download_papers_agent"
+            "papers_search_agent"
         ],
         # nodes for scenario agents
         "scenario_agent_funcs": {
@@ -207,7 +214,7 @@ conf = {
             "paper_analysis_agent": paper_analysis_agent,
             "web_search": web_search_node,
             "chem_ocr_agent": chem_ocr_agent,
-            "download_papers_agent": download_papers_agent
+            "papers_search_agent": papers_search_agent
         },
         # descripton for agents tools - if using langchain @tool
         # or description of agent capabilities in free format

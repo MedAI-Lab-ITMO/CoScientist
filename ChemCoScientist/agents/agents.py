@@ -2,6 +2,7 @@ import ast
 import os
 import time
 import json
+import logging
 from typing import Annotated
 import operator
 import streamlit as st
@@ -19,11 +20,14 @@ from ChemCoScientist.agents.agents_prompts import (
     worker_prompt,
     chem_ocr_prompt
 )
-from ChemCoScientist.tools import chem_tools, nanoparticle_tools, paper_analysis_tools, data_tools, chem_ocr_tools, download_papers_tools
+from ChemCoScientist.tools import chem_tools, nanoparticle_tools, paper_analysis_tools, data_tools
 from ChemCoScientist.tools.ml_tools import agents_tools as automl_tools
+from ChemCoScientist.download_papers.functions import download_papers
 
-from ChemCoScientist.agents.agents_prompts import paper_agent_prompt, coder_prompt, download_papers_prompt
+from ChemCoScientist.agents.agents_prompts import paper_agent_prompt, coder_prompt
 from definitions import ROOT_DIR
+
+logger = logging.getLogger(__name__)
 
 
 def get_all_files(directory: str):
@@ -344,11 +348,11 @@ def paper_analysis_agent(state: dict, config: dict) -> Command:
         Command: An object containing the next step in the process ('replan' or `END`) and
         updates to the state, including recorded steps, responses, and extracted metadata.
     """
-    print("--------------------------------")
-    print("Paper agent called")
-    print(f"Current task: {state['task']}")
-    print(f"Current input: {state['input']}")
-    print("--------------------------------")
+    logger.info("--------------------------------")
+    logger.info("Paper agent called")
+    logger.info(f"Current task: {state['task']}")
+    logger.info(f"Current input: {state['input']}")
+    logger.info("--------------------------------")
 
     llm: BaseChatModel = config["configurable"]["llm"]
 
@@ -385,7 +389,7 @@ def paper_analysis_agent(state: dict, config: dict) -> Command:
                 "metadata": Annotated[dict, operator.or_](updated_metadata),
             })
         except Exception as e:
-            print(f"Paper analysis agent error: {str(e)}. Retrying ({attempt + 1}/3)")
+            logger.error(f"Paper analysis agent error: {str(e)}. Retrying ({attempt + 1}/3)")
             time.sleep(1.2 ** attempt)
 
     return Command(goto=END, update={
@@ -461,7 +465,7 @@ def chem_ocr_agent(state: dict, config: dict) -> Command:
     })
 
 
-def download_papers_agent(state: dict, config: dict) -> Command:
+def papers_search_agent(state: dict, config: dict) -> Command:
     """
     Searches for scientific papers based on user query and downloads their PDFs.
 
@@ -476,31 +480,17 @@ def download_papers_agent(state: dict, config: dict) -> Command:
         Command: An object containing the next step in the process ('replan' or `END`) and
         updates to the state, including recorded steps, responses, and extracted metadata.
     """
-    print("--------------------------------")
-    print("Papers download agent called")
-    print(f"Current task: {state['task']}")
-    print(f"Current input: {state['input']}")
-    print("--------------------------------")
-
-    llm: BaseChatModel = config["configurable"]["llm"]
+    logger.info("--------------------------------")
+    logger.info("Papers download agent called")
+    logger.info(f"Current task: {state['task']}")
+    logger.info(f"Current input: {state['input']}")
+    logger.info("--------------------------------")
 
     task = state["task"]
 
-    # TODO: update this when proper frontend is added
-    try:
-        current_prompt = f'{download_papers_prompt}\n session_id = {config["configurable"]["session_id"]}'
-    except:
-        current_prompt = f'{download_papers_prompt}\nsession_id is not needed in this case, pass 1'
-
-    download_papers_agent = create_react_agent(
-        llm, download_papers_tools, state_modifier=current_prompt
-    )
-
     for attempt in range(3):
-        try:
-            response = download_papers_agent.invoke({"messages": [("user", task)]})
-
-            result = ast.literal_eval(response["messages"][2].content)
+        try:            
+            result = download_papers(task)
             
             answer_serialized = json.dumps(result["answer"], sort_keys=True)
 
@@ -517,12 +507,12 @@ def download_papers_agent(state: dict, config: dict) -> Command:
                     (task, answer_serialized)
                 ])),
                 "nodes_calls": Annotated[set, operator.or_](set([
-                    ("download_papers_agent", (("text", answer_serialized),))
+                    ("papers_search_agent", (("text", answer_serialized),))
                 ])),
                 "metadata": Annotated[dict, operator.or_](updated_metadata),
             })
         except Exception as e:
-            print(f"Download papers agent error: {str(e)}. Retrying ({attempt + 1}/3)")
+            logger.error(f"Download papers agent error: {str(e)}. Retrying ({attempt + 1}/3)")
             time.sleep(1.2 ** attempt)
 
     return Command(goto=END, update={
