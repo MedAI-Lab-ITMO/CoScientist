@@ -1,14 +1,10 @@
 from pprint import pprint
 import os, io
 from PIL import Image, ImageDraw
+import pandas as pd
 from pathlib import Path
-import logging
 
-from ChemCoScientist.chemical_utils.chemical_functions import extract_molecules_from_figure, extract_reactions_from_figure
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
+from ChemCoScientist.chemical_utils.openchemie_functions import extract_molecules_from_figure, extract_reactions_from_figure
 
 def draw_bboxes_on_image(
     image: bytes, 
@@ -71,23 +67,11 @@ def molecules_ocr(images: list[str]) -> dict:
         img_path = Path(img_path)
         img_bytes = img_path.read_bytes()
         
-        try:
-            openchemie_result = extract_molecules_from_figure(img_bytes)
-        except (ConnectionError, ValueError, RuntimeError) as e:
-            logger.error(f"Error processing image {img_path}: {str(e)}")
-            result[img_path.name] = []
-            continue
+        openchemie_result = extract_molecules_from_figure(image=img_bytes)
         
-        if not openchemie_result or len(openchemie_result) == 0:
-            logger.error(f"No results returned for image: {img_path}")
-            result[img_path.name] = []
-            continue
-            
         entries = openchemie_result[0].get("bboxes", [])
         if not entries:
-            logger.error(f"No molecular entries detected in image: {img_path}")
-            result[img_path.name] = []
-            continue
+            raise ValueError(f"No molecular entries detected in image: {img_path}")
         
         bboxes, smiles = [], []
         
@@ -141,23 +125,11 @@ def reactions_ocr(images: list[str]) -> dict:
         img_path = Path(img_path)
         img_bytes = img_path.read_bytes()
         
-        try:
-            openchemie_result = extract_reactions_from_figure(img_bytes)
-        except (ConnectionError, ValueError, RuntimeError) as e:
-            logger.error(f"Error processing image {img_path}: {str(e)}")
-            result[img_path.name] = {"reactants": [], "conditions": [], "products": []}
-            continue
-        
-        if not openchemie_result or len(openchemie_result) == 0:
-            logger.error(f"No results returned for image: {img_path}")
-            result[img_path.name] = {"reactants": [], "conditions": [], "products": []}
-            continue
+        openchemie_result = extract_reactions_from_figure(image=img_bytes)
         
         entries = openchemie_result[0].get("reactions", [])
         if not entries:
-            logger.error(f"No reaction entries detected in image: {img_path}")
-            result[img_path.name] = {"reactants": [], "conditions": [], "products": []}
-            continue
+            raise ValueError(f"No reaction entries detected in image: {img_path}")
         
         bboxes = []
         result[img_path.name] = {"reactants": [], "conditions": [], "products": []}
