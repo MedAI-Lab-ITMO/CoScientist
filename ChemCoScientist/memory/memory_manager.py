@@ -14,7 +14,11 @@ from protollm.agents.builder import GraphBuilder
 from langchain_core.messages import AIMessage
 import asyncio
 
-import asyncio
+
+from protollm.agents.agent_utils.states import initialize_state
+from opik import configure 
+from opik.integrations.langchain import OpikTracer 
+configure() 
 
 
 #from dotenv import load_dotenv 
@@ -282,7 +286,23 @@ class MemoryGraph(HybridMemoryManager):
                  short_memory_size: int = 3, logger=None):
         super().__init__(llm, short_memory_size, embeddings, logger)
         self.graph = GraphBuilder(config)
+        self.tracer = OpikTracer(graph=self.graph.app.get_graph(xray=True)) 
         self.k = k
+
+    def _stream(self, inputs: dict, image_path: str = "", user_id: str = "1"):
+        """Start streaming the input through the graph."""
+        if 'attached_img' in inputs.keys():
+            image_path = inputs['attached_img']
+        
+        state = initialize_state(user_input=inputs["input"], user_id=user_id)
+        state["attached_img"] = image_path
+
+        config = self.graph.conf
+        config.update({"callbacks": [self.tracer]})
+        
+        for event in self.graph.app.stream(state, config=config):
+            for k, v in event.items():
+                yield (v)
 
     async def stream(self, inputs: dict, image_path: str = "", user_id: str = "1") -> \
             AsyncGenerator[Dict[str, Any], None]:
@@ -294,7 +314,7 @@ class MemoryGraph(HybridMemoryManager):
         inputs['input'] = input_msg
 
         responses = []
-        for v in self.graph.stream(inputs, image_path, user_id):
+        for v in self._stream(inputs, image_path, user_id):
             yield v
             responses.append(v)
 
