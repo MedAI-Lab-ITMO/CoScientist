@@ -93,13 +93,15 @@ def download_papers(task: str) -> List[str]:
         return {'answer': 'No papers found for the given query.'}
     print("Downloading PDFs...")
     downloaded_paths = []
+    titles = []
     for work in response.json().get("results", []):
         title = work["title"]
+        titles.append(title)
         url = work["content_urls"]["pdf"] + f"?api_key={OPENALEX_API_KEY}"
         downloaded_path = download_from_openalex(url, title)
         downloaded_paths.append(downloaded_path)
     if downloaded_paths:
-        return {'answer': 'These are downloaded papers:',
+        return {'answer': f'Papers were successfully downloaded: {", ".join(titles)}.',
                 'metadata': {'papers': downloaded_paths}}
     else:
         return {'answer': 'Could not download any papers.'}

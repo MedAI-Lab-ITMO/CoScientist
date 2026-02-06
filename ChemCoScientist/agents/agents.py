@@ -19,7 +19,6 @@ from ChemCoScientist.agents.agents_prompts import (
     automl_prompt,
     ds_builder_prompt,
     worker_prompt,
-    chemist_prompt,
 )
 from ChemCoScientist.tools import chem_tools, nanoparticle_tools, paper_analysis_tools, data_tools
 from ChemCoScientist.tools.ml_tools import agents_tools as automl_tools

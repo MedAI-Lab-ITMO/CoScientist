@@ -2,6 +2,8 @@ import os
 import time
 
 import streamlit as st
+import base64
+import streamlit.components.v1 as components
 #from protollm.agents.builder import GraphBuilder
 from streamlit_extras.grid import GridDeltaGenerator, grid
 from ChemCoScientist.tools.utils import convert_to_base64
@@ -547,6 +549,168 @@ def init_papers():
         _render_paper_uploader()
 
 
+def init_downloaded_papers():
+    """
+    Initializes the Downloaded Papers section in the sidebar and renders
+    the list of papers the agent downloaded.
+    """
+    downloads_container = st.container(border=True)
+    with downloads_container:
+        if st.session_state.language == "English":
+            st.header("Downloaded Papers")
+        else:
+            st.header("Скачанные статьи")
+        _render_downloaded_papers()
+
+
+def _render_downloaded_papers():
+    """
+    Renders a list of papers downloaded by the papers-search agent and allows importing them
+    into the session (copies into the temp session folder and processes them the same way
+    as uploaded files).
+    """
+    downloads_dir = os.path.join(ROOT_DIR, "downloaded_papers")
+    os.makedirs(downloads_dir, exist_ok=True)
+    files = [f for f in os.listdir(downloads_dir) if f.lower().endswith(".pdf")]
+
+    match st.session_state.language:
+        case "English":
+            title = "Downloaded papers"
+            import_label = "Import"
+            view_label = "Open"
+        case _:
+            title = "Скачанные статьи"
+            import_label = "Импортировать"
+            view_label = "Открыть"
+
+    with st.expander(title):
+        st.markdown(
+            "<div style='margin:0 0 0 0; font-size:14px; padding-bottom:2px;'>Papers downloaded by the agent will appear here.</div>",
+            unsafe_allow_html=True,
+        )
+        # Style buttons in the sidebar expander: full width, centered text, smaller vertical gap
+        st.markdown(
+            """
+            <style>
+            /* Make Streamlit buttons full-width and center the text; reduce vertical margin */
+            .stButton>button {
+                width: 100% !important;
+                text-align: center !important;
+                margin: 4px 0 !important;
+                padding: 8px 0 !important;
+            }
+            /* Slightly tighten the container spacing around the buttons */
+            .stExpander .stButton {
+                margin-bottom: 4px !important;
+            }
+            /* Reduce top margin for multiselect inside expander to tighten vertical gap */
+            .stMultiSelect, .stMultiSelect > div {
+                margin-top: 0 !important;
+                padding-top: 0 !important;
+            }
+            /* Reduce expander internal padding */
+            .stExpander>div {
+                padding-top: 4px !important;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+        selected = st.multiselect(
+            "",
+            options=files,
+            key="downloaded_papers_selection",
+            help="Select papers to import for processing",
+        )
+
+        # Buttons stacked vertically: Import then Open
+        if st.button(import_label, key="import_downloaded_papers", use_container_width=True):
+            load_downloaded_papers()
+
+        if st.button(view_label, key="view_selected_downloaded_papers", use_container_width=True):
+            selection = st.session_state.get("downloaded_papers_selection", []) or []
+            if not selection:
+                st.toast("No papers selected", icon="⚠️")
+            else:
+                js_parts = []
+                for fname in selection:
+                    path = os.path.join(downloads_dir, fname)
+                    try:
+                        with open(path, "rb") as _f:
+                            file_b64 = base64.b64encode(_f.read()).decode("utf-8")
+
+                        js = f"""
+                        (function() {{
+                            var w = window.open("");
+                            if (!w) {{ return; }}
+                            var iframe = w.document.createElement('iframe');
+                            iframe.style.position = 'fixed';
+                            iframe.style.left = '0';
+                            iframe.style.top = '0';
+                            iframe.style.width = '100%';
+                            iframe.style.height = '100%';
+                            iframe.style.border = 'none';
+                            iframe.src = 'data:application/pdf;base64,{file_b64}';
+                            w.document.body.style.margin = '0';
+                            w.document.body.appendChild(iframe);
+                        }})();
+                        """
+                        js_parts.append(js)
+                    except Exception as e:
+                        st.write(f"Could not read {fname} for viewing: {e}")
+
+                if js_parts:
+                    html = "<script>" + "\n".join(js_parts) + "</script>"
+                    components.html(html, height=0)
+
+
+def load_downloaded_papers():
+    """
+    Imports selected files from the `downloaded_papers/` folder and processes them
+    using the existing `process_uploaded_paper` endpoint (by wrapping file bytes
+    in a small object compatible with Streamlit's UploadedFile `.getvalue()` API).
+    """
+    selection = st.session_state.get("downloaded_papers_selection", []) or []
+    if not selection:
+        st.toast("No papers selected", icon="⚠️")
+        return
+
+    downloads_dir = os.path.join(ROOT_DIR, "downloaded_papers")
+    new_files_processed = False
+    with st.spinner("Importing selected downloaded papers..."):
+        for fname in selection:
+            # avoid duplicating already-processed uploads
+            if fname in [f["name"] for f in st.session_state.uploaded_papers]:
+                continue
+            path = os.path.join(downloads_dir, fname)
+            try:
+                class LocalFile:
+                    def __init__(self, path, name):
+                        self.name = name
+                        with open(path, "rb") as _f:
+                            self._data = _f.read()
+
+                    def getvalue(self):
+                        return self._data
+
+                lf = LocalFile(path, fname)
+                result = process_uploaded_paper(lf)
+                if result.get("success"):
+                    st.session_state.uploaded_papers.append({
+                        "name": fname,
+                        "size": os.path.getsize(path),
+                        "type": "application/pdf",
+                    })
+                    new_files_processed = True
+                else:
+                    st.error(f"❌ Error processing file: {fname} - {result.get('msg','')}")
+            except Exception as e:
+                st.error(f"❌ Unexpected error processing {fname}: {e}")
+
+    if new_files_processed:
+        st.toast("Imported downloaded papers", icon="✅")
+
+
 def _render_image_uploader():
     """
     Renders an interface for uploading images of nanomaterials for analysis.
@@ -653,6 +817,7 @@ def side_bar(backend='ChemCoScientis'):
         init_dataset()
         init_images()
         init_papers()
+        init_downloaded_papers()
 
     match st.session_state.language:
         case "English":
