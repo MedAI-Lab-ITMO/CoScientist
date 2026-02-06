@@ -111,30 +111,51 @@ papers_search_agent_description = """
 Agent name: papers_search_agent
 
 Purpose:
-Search OpenAlex for relevant scientific papers and download available PDFs, using PaperScraper as a fallback.
+Search OpenAlex for relevant scientific papers, download their PDF files, and return
+download metadata for downstream processing.
 
 When to activate:
-- User asks to find or/and download papers on a specific a research topic or query.
+- User requests finding or downloading papers for a given research topic, author,
+    journal, or institution.
 
-Procedure:
-1) Use the OpenAlex documentation to generate an API request via the vision LLM.
-2) Fetch results and extract titles, DOIs, and open-access URLs.
-3) Prefer downloading PDFs via OpenAlex; if unavailable or fails, use PaperScraper with DOI.
-4) Save files to the configured DOWNLOADED_PAPERS_PATH.
-5) Return a list of successfully downloaded filepaths.
+Procedure (implementation details):
+1) Use an LLM (via the configured `VISION_LLM_URL`) to generate the appropriate
+     OpenAlex API request URL for the user's query.
+2) Call OpenAlex (with retry logic) and inspect the returned `results`.
+3) For each result containing a `content_urls.pdf`, download the PDF and save it to
+     the configured `DOWNLOADED_PAPERS_PATH` using a sanitized filename.
+4) Return a structured response containing a human-readable `answer` and `metadata`.
+    When PDFs were downloaded, `metadata.papers` contains the list of saved file paths.
+    For queries that resolve to an entity (author/source/institution), the agent may
+    return an `id` in `metadata` instead of (or in addition to) downloaded files.
 
-Constraints:
-- Generate API requests strictly following OpenAlex guidelines.
-- Only download open-access PDFs; do not attempt paywalled content.
+Two-step / entity-ID flow:
+- The agent can be used in a two-step pattern for author/journal/institution queries:
+  1) First call the agent to resolve the target entity to an OpenAlex ID (the agent
+    will return `metadata.id` when it detects an entity-resolution response).
+  2) Then call the agent again (or include the resolved ID in the original query)
+    to search for and download papers associated with that entity. This two-step
+    approach is supported by the implementation and recommended for precise author or
+    source-based searches.
+
+Notes and constraints:
+- The agent builds the OpenAlex request via an LLM and then performs the HTTP calls
+    directly; network retry/backoff logic is applied for robustness.
+- The agent downloads PDFs listed in `content_urls.pdf` from OpenAlex results and
+    saves them locally; it does not attempt to bypass paywalls beyond what OpenAlex
+    exposes in `content_urls`.
 
 Inputs:
 - user_query: str
 
 Outputs:
-- downloaded_files: list[str]  # filepaths to saved PDFs
+- A dict with an `answer` string and optional `metadata` dict. When downloads occur,
+    `metadata.papers` is a list of downloaded file paths; when an entity ID is resolved,
+    `metadata.id` is provided.
 
 Failure handling:
-If no PDFs can be downloaded, return an empty list and log a brief explanation.
+- If no papers are found or downloads fail, the agent returns an explanatory `answer`
+    and an empty or absent `metadata.papers`.
 """
 
 
@@ -244,6 +265,9 @@ conf = {
                     7. You must include all information you see in user prompt to your plan
                     8. If you get a general question about chemistry first call paper_analysis_agent. Use web search
                     only if paper_analysis_agent has no answer. 
+                    9. If you get a query to find papers by author, journal or institution, create two sequential subtasks
+                    with papers_search_agent: first resolve the author's/journal's/institution's OpenAlex ID, then search for
+                    papers using that ID.
                     """,
                 "desc_restrictions": """
                     - You cant name agents
@@ -278,6 +302,15 @@ conf = {
                     Response: {
                         "steps": [
                             ["Generate 5 molecules related to MEK1", "Generate 3 molecules using the GSK model"]
+                        ]
+                    }
+
+                    Example 4 (author search):
+                    Request: "Find papers by author 'Jane Q. Researcher' about quantum dots"
+                    Response: {
+                        "steps": [
+                            ["Search OpenAlex for author ID for 'Jane Q. Researcher'"],
+                            ["Search OpenAlex for papers by the found author ID about quantum dots"]
                         ]
                     }
                     """,

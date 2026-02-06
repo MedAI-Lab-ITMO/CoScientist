@@ -85,27 +85,30 @@ def generate_openalex_url(query: str) -> Dict[str, Any]:
 
 
 def download_papers(task: str) -> List[str]:
-    """Search for papers matching a task query and download their PDFs using OpenAlex and PaperScraper."""
+    """Search for papers matching a task query and download their PDFs using OpenAlex."""
     url = generate_openalex_url(task)
     print("Generated OpenAlex API request URL:", url)
     response = request_with_retry(url)
     if response.json().get("results", []) == []:
         return {'answer': 'No papers found for the given query.'}
-    print("Downloading PDFs...")
-    downloaded_paths = []
-    titles = []
-    for work in response.json().get("results", []):
-        title = work["title"]
-        titles.append(title)
-        url = work["content_urls"]["pdf"] + f"?api_key={OPENALEX_API_KEY}"
-        downloaded_path = download_from_openalex(url, title)
-        downloaded_paths.append(downloaded_path)
-    if downloaded_paths:
-        return {'answer': f'Papers were successfully downloaded: {", ".join(titles)}.',
-                'metadata': {'papers': downloaded_paths}}
-    else:
-        return {'answer': 'Could not download any papers.'}
+    if "works" in url:
+        print("Downloading PDFs...")
+        downloaded_paths = []
+        titles = []
+        for work in response.json().get("results", []):
+            title = work["title"]
+            titles.append(title)
+            url = work["content_urls"]["pdf"] + f"?api_key={OPENALEX_API_KEY}"
+            downloaded_path = download_from_openalex(url, title)
+            downloaded_paths.append(downloaded_path)
+        if downloaded_paths:
+            return {'answer': f'Papers were successfully downloaded: {", ".join(titles)}.',
+                    'metadata': {'papers': downloaded_paths}}
+    
+    if "authors" in url or "sources" in url or "institutions" in url:
+        id = response.json().get("results", [])[0]["id"]
+        return {'answer': f'Entity ID: {id}'}
 
 if __name__ == "__main__":
-    result = download_papers("find 5 papers about SAR studies of benzimidazoles")
+    result = download_papers("find papers by Yann LeCun")
     print(result)

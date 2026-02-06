@@ -429,9 +429,9 @@ def paper_analysis_agent(state: dict, config: dict) -> Command:
 
 def papers_search_agent(state: dict, config: dict) -> Command:
     """
-    Searches for scientific papers based on user query and downloads their PDFs.
+    Searches for entity IDs or scientific papers based on user query and downloads papers' PDFs.
 
-    This agent utilizes the OpenAlex API and PaperScraper to find and download 
+    This agent utilizes the OpenAlex API to find and download 
     PDFs of scientific papers relevant to the user's specified topic or query.
 
     Args:
@@ -443,7 +443,7 @@ def papers_search_agent(state: dict, config: dict) -> Command:
         updates to the state, including recorded steps, responses, and extracted metadata.
     """
     logger.info("--------------------------------")
-    logger.info("Papers download agent called")
+    logger.info("Papers search and download agent called")
     logger.info(f"Current task: {state['task']}")
     logger.info(f"Current input: {state['input']}")
     logger.info("--------------------------------")
@@ -474,7 +474,7 @@ def papers_search_agent(state: dict, config: dict) -> Command:
                 "metadata": Annotated[dict, operator.or_](updated_metadata),
             })
         except Exception as e:
-            logger.error(f"Download papers agent error: {str(e)}. Retrying ({attempt + 1}/3)")
+            logger.error(f"Papers search agent error: {str(e)}. Retrying ({attempt + 1}/3)")
             time.sleep(1.2 ** attempt)
 
     return Command(goto=END, update={
