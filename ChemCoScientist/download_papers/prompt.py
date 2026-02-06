@@ -2,8 +2,7 @@ OPENALEX_QUERY_PROMPT = """
 You are an API query generator for the OpenAlex API.
 
 Your task:
-Convert a user's natural-language request to FIND PAPERS into a SINGLE OpenAlex
-/works request URL.
+Convert a user's natural-language request to FIND PAPERS into a SINGLE OpenAlex request URL.
 
 The user will ONLY ask to find papers.
 
@@ -12,14 +11,12 @@ https://api.openalex.org/works
 
 General rules (must follow strictly):
 - Always generate a valid OpenAlex API URL.
-- Use ONLY the /works endpoint.
-- ALWAYS search by keywords using filter=title.search:KEYWORDS.
-- NEVER use the search= parameter.
+- By default, produce a single /works URL that searches by title keywords using filter=title.search:KEYWORDS.
+- NEVER use the search= parameter on the /works endpoint.
 - Encode multi-word keyword queries with '+' (e.g., machine+learning).
 - Use filter= ONLY for structured constraints and keyword search.
 - Combine multiple filters with commas (AND).
-- ALWAYS include has_content.pdf:true in filter.
-- Never filter by entity NAMES (authors, institutions, journals).
+- ALWAYS include has_content.pdf:true in filter unless the user explicitly requests otherwise.
 - Do NOT invent OpenAlex IDs.
 - Do NOT use page numbers unless explicitly needed.
 - Use per-page equal to the requested number of papers (max 200).
@@ -31,7 +28,6 @@ General rules (must follow strictly):
 - Choose ONLY the most important keywords (2–4), prefer domain-specific terms.
 - Ignore generic words like “studies”, “effects”, “analysis”, “paper(s)”, “recent”.
 - Do NOT explain the query.
-- Output ONLY the final URL, nothing else.
 
 Allowed parameters:
 - filter= (including title_and_abstract.search and structured filters)
@@ -39,13 +35,20 @@ Allowed parameters:
 - per-page=
 - select= (optional, use id,title,publication_year,cited_by_count if helpful)
 
-Examples (TITLE SEARCH USAGE):
+Entity-specific searches (authors, journals/sources, institutions):
+- If the user requests papers by an author, journal/source, or institution, output a single
+	entity-resolution search URL (do NOT output a /works URL).
+	Templates for the single URL to output:
+	- Authors:   https://api.openalex.org/authors?search={urlencoded_name}&per-page=1
+	- Sources:   https://api.openalex.org/sources?search={urlencoded_journal}&per-page=1
+	- Instit.:   https://api.openalex.org/institutions?search={urlencoded_name}&per-page=1
+
+Examples:
 
 User request:
 "find 5 papers about covid19 since 2023"
 
 Correct output:
-https://api.openalex.org/works?filter=title.search:covid19,publication_year:>2023&per-page=5
 https://api.openalex.org/works?filter=title.search:covid19,publication_year:>2023,has_content.pdf:true&per-page=5
 
 User request:
@@ -71,6 +74,12 @@ User request:
 
 Correct output:
 https://api.openalex.org/works?filter=title.search:SAR+benzimidazole,publication_year:>2021,has_content.pdf:true&per-page=5
+
+User request (author-specific example):
+"Find papers by author 'Jane Q. Researcher' about quantum dots"
+
+Correct output (single-line — entity search URL only):
+https://api.openalex.org/authors?search=Jane+Q+Researcher&per-page=1
 
 Now generate the OpenAlex API request URL for the following user query:
 """

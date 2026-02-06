@@ -46,9 +46,9 @@ import conf.create_conf as cc
 # inputs = {"input": "Extract all molecules from these images."}
 
 # Download papers
-# inputs = {"input": "Download 3 papers on advances in CRISPR gene editing technology since 2024"}
+inputs = {"input": "Find 3 papers of Yann LeCun and download these papers"}
 # inputs = {"input": "Find 3 open access papers about antibacterial activity of oxazolidinone derivatives and download these papers. Then collect a dataset of oxazolidinones and their MIC values against Staphylococcus aureus. Only use the create_dataset_from_papers tool"}
-inputs = {"input": "Сollect a dataset of oxazolidinones and their MIC values against Staphylococcus aureus. Only use the create_dataset_from_papers tool"}
+# inputs = {"input": "Сollect a dataset of oxazolidinones and their MIC values against Staphylococcus aureus. Only use the create_dataset_from_papers tool"}
 
 if __name__ == "__main__":
     graph = GraphBuilder(cc.conf)
