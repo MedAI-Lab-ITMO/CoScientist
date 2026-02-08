@@ -9,6 +9,8 @@ import operator
 import streamlit as st
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import ToolMessage
+import logging
+from langchain_mcp_adapters.client import MultiServerMCPClient  
 
 from langgraph.types import Command
 from langgraph.graph import END
@@ -244,9 +246,10 @@ def chemist_node(state: dict, config: dict) -> Command:
     llm = config["configurable"]["llm"]
 
     current_prompt = f'{chemist_prompt}\nPass {{"session_id": None}} as a parameter to the detect_molecules and detect_reactions tools'
+    chemical_tools = _get_chemical_mcp_tools()
 
     chem_agent = create_react_agent(
-        llm, chem_tools, state_modifier=current_prompt
+        llm, chemical_tools, state_modifier=current_prompt
     )
 
     task_formatted = f"""For the following plan:\n{str(plan)}\n\nYou are tasked with executing: {task}."""
