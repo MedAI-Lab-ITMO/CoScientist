@@ -1,5 +1,7 @@
 import os
 import time
+import io
+import zipfile
 
 import streamlit as st
 import base64
@@ -586,7 +588,7 @@ def _render_downloaded_papers():
             "<div style='margin:0 0 0 0; font-size:14px; padding-bottom:2px;'>Papers downloaded by the agent will appear here.</div>",
             unsafe_allow_html=True,
         )
-        # Style buttons in the sidebar expander: full width, centered text, smaller vertical gap
+
         st.markdown(
             """
             <style>
@@ -622,38 +624,51 @@ def _render_downloaded_papers():
             label_visibility="collapsed",
         )
 
-        # Buttons stacked vertically: Import then Download
         if st.button(import_label, key="import_downloaded_papers", use_container_width=True):
             load_downloaded_papers()
 
-        # Show download buttons for selected papers
         selection = st.session_state.get("downloaded_papers_selection", []) or []
         if selection:
-            st.markdown("**Download selected papers:**")
-            for fname in selection:
-                path = os.path.join(downloads_dir, fname)
-                try:
-                    if not os.path.exists(path):
-                        st.error(f"❌ {fname}: File not found")
-                        continue
-                    
-                    with open(path, "rb") as _f:
-                        file_data = _f.read()
-                        
-                        if not file_data.startswith(b'%PDF'):
-                            st.error(f"❌ {fname}: Invalid PDF format")
+            # Single-button download: create an in-memory ZIP of selected PDFs and show one download button
+            match st.session_state.language:
+                case "English":
+                    dl_label = "Download selected"
+                case _:
+                    dl_label = "Скачать выбранные"
+
+            # Build ZIP immediately (small numbers of files expected). If files are large, consider streaming.
+            buf = io.BytesIO()
+            added = 0
+            with zipfile.ZipFile(buf, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+                for fname in selection:
+                    path = os.path.join(downloads_dir, fname)
+                    try:
+                        if not os.path.exists(path):
+                            logger.error(f"File not found: {path}")
                             continue
-                        
-                        st.download_button(
-                            label=f"⬇️ {fname}",
-                            data=file_data,
-                            file_name=fname,
-                            mime="application/pdf",
-                            use_container_width=True,
-                            key=f"download_{fname}"
-                        )
-                except Exception as e:
-                    st.error(f"❌ {fname}: {str(e)}")
+                        with open(path, "rb") as f:
+                            data = f.read()
+                            if not data.startswith(b"%PDF"):
+                                logger.error(f"Invalid PDF format: {path}")
+                                continue
+                            zf.writestr(fname, data)
+                            added += 1
+                    except Exception as e:
+                        logger.exception(f"Error adding {fname} to zip: {e}")
+
+            if added == 0:
+                st.warning("No valid PDFs selected to download")
+            else:
+                buf.seek(0)
+                zip_name = f"papers_{time.strftime('%Y%m%d_%H%M%S')}.zip"
+                st.download_button(
+                    label=dl_label,
+                    data=buf.getvalue(),
+                    file_name=zip_name,
+                    mime="application/zip",
+                    use_container_width=True,
+                    key="download_selected_zip"
+                )
 
 
 def load_downloaded_papers():
