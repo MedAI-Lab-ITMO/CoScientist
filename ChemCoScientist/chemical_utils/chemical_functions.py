@@ -18,7 +18,7 @@ CHEM_SERVICES_URL = f"http://{CHEM_SERVICES_HOST}:{CHEM_SERVICES_PORT}"
 REQUEST_TIMEOUT = 60
 
 
-def handle_api_request(endpoint: str, file_param_name: str = None, ):
+def handle_api_request(host: str, endpoint: str, file_param_name: str = None, ):
     """
     Decorator for handling requests to Chemical ToolsService API.
     
@@ -45,7 +45,7 @@ def handle_api_request(endpoint: str, file_param_name: str = None, ):
                 Data from the "data" field of the API response
             """
             try:
-                api_url = f"{CHEM_SERVICES_URL}{endpoint}"
+                api_url = f"{host}{endpoint}"
                 logger.info(f"Calling ChemService API: {api_url}")
                 
                 if file_param_name:
@@ -102,7 +102,7 @@ def handle_api_request(endpoint: str, file_param_name: str = None, ):
     return decorator
 
 
-@handle_api_request(endpoint="/extract_reactions_from_pdf/", file_param_name="pdf_file")
+@handle_api_request(host=CHEM_SERVICES_URL, endpoint="/extract_reactions_from_pdf/", file_param_name="pdf_file")
 def extract_reactions_from_pdf(file: bytes) -> List[Dict]:
     """
     Extract reactions information from a PDF file.
@@ -121,7 +121,7 @@ def extract_reactions_from_pdf(file: bytes) -> List[Dict]:
     pass
 
 
-@handle_api_request(endpoint="/extract_reactions_from_figure/", file_param_name="image")
+@handle_api_request(host=CHEM_SERVICES_URL, endpoint="/extract_reactions_from_figure/", file_param_name="image")
 def extract_reactions_from_figure(image: bytes) -> List[Dict]:
     """
     Extract reactions information from an image.
@@ -136,7 +136,7 @@ def extract_reactions_from_figure(image: bytes) -> List[Dict]:
     pass
 
 
-@handle_api_request(endpoint="/extract_molecules_from_pdf/", file_param_name="pdf_file")
+@handle_api_request(host=CHEM_SERVICES_URL, endpoint="/extract_molecules_from_pdf/", file_param_name="pdf_file")
 def extract_molecules_from_pdf(file: bytes) -> List[Dict]:
     """
     Extract molecules information from a PDF file.
@@ -151,7 +151,7 @@ def extract_molecules_from_pdf(file: bytes) -> List[Dict]:
     pass
 
 
-@handle_api_request(endpoint="/extract_molecules_from_figure/", file_param_name="image")
+@handle_api_request(host=CHEM_SERVICES_URL, endpoint="/extract_molecules_from_figure/", file_param_name="image")
 def extract_molecules_from_figure(image: bytes) -> List[Dict]:
     """
     Extract molecules information from an image.
@@ -166,7 +166,7 @@ def extract_molecules_from_figure(image: bytes) -> List[Dict]:
     pass
 
 
-@handle_api_request(endpoint="/convert_image_to_smiles/", file_param_name="image")
+@handle_api_request(host=CHEM_SERVICES_URL, endpoint="/convert_image_to_smiles/", file_param_name="image")
 def convert_image_to_smiles(image: bytes) -> str:
     """
     Convert an image to a smiles string.
@@ -178,7 +178,7 @@ def convert_image_to_smiles(image: bytes) -> str:
     """
     pass
 
-@handle_api_request(endpoint="/docking/", file_param_name=None)
+@handle_api_request(host=CHEM_SERVICES_URL, endpoint="/docking/", file_param_name=None)
 def calculate_docking_score(smiles: str, pdb_id: str) -> str:
     """
     Calculate docking score for a molecule.
@@ -190,7 +190,6 @@ def calculate_docking_score(smiles: str, pdb_id: str) -> str:
         response (str): Docking score for the molecule.
     """
     pass
-
 
 def remove_keys(obj: Any, keys_to_remove: set[str] = {"bbox", "score"}) -> Any:
     """Processes ChemService json output to remove unnecessary keys like 'score' and 'bbox'."""
@@ -204,7 +203,7 @@ def remove_keys(obj: Any, keys_to_remove: set[str] = {"bbox", "score"}) -> Any:
             remove_keys(item, keys_to_remove)
     return obj
 
-
 if __name__ == "__main__":
     result = calculate_docking_score(smiles="C1CCCCC1", pdb_id="5vfi")
     print(result)
+
