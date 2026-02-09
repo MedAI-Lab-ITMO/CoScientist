@@ -52,7 +52,7 @@ def request_with_retry(
                 response.raise_for_status()
         except requests.exceptions.Timeout:
             if attempt < max_retries - 1:
-                print("Retrying... Attempt", attempt + 2)
+                logger.info(f"Retrying... Attempt {attempt + 2}")
                 time.sleep(2 ** attempt)
             else:
                 raise
@@ -65,7 +65,7 @@ def download_from_openalex(pdf_url: str, paper_title: str) -> str:
     filepath = f"{DOWNLOADED_PAPERS_PATH}/{sanitize_filename(paper_title)}.pdf"
     with open(filepath, "wb") as f:
         f.write(response.content)
-    print(f"Downloaded: {filepath}")
+    logger.info(f"Downloaded: {filepath}")
     return filepath
 
 
@@ -87,12 +87,12 @@ def generate_openalex_url(query: str) -> Dict[str, Any]:
 def download_papers(task: str) -> List[str]:
     """Search for papers matching a task query and download their PDFs using OpenAlex."""
     url = generate_openalex_url(task)
-    print("Generated OpenAlex API request URL:", url)
+    logger.info(f"Generated OpenAlex API request URL: {url}")
     response = request_with_retry(url)
     if response.json().get("results", []) == []:
         return {'answer': 'No papers found for the given query.'}
     if "works" in url:
-        print("Downloading PDFs...")
+        logger.info("Downloading PDFs...")
         downloaded_paths = []
         titles = []
         for work in response.json().get("results", []):
