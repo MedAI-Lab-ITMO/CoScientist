@@ -256,8 +256,19 @@ def chemist_node(state: dict, config: dict) -> Command:
             config["configurable"]["state"] = state
             agent_response = chem_agent.invoke({"messages": [("user", task_formatted)]})
             
+            def _parse_tool_content(content):
+                try:
+                    return json.loads(content)
+                except Exception:
+                    try:
+                        return ast.literal_eval(content)
+                    except Exception:
+                        return None
+                    
             updated_metadata = state.get("metadata", {}).copy()
             for message in agent_response["messages"]:
+                if isinstance(message, ToolMessage):
+                    print(f"TOOL MESSAGE: {message.name}")
                 if isinstance(message, ToolMessage) and message.name in ["detect_molecules", "detect_reactions", "extract_reactions"]:
                     result = json.loads(message.content)
                     ocr_metadata = {"chem_ocr": result.get("metadata", None)}
@@ -277,23 +288,22 @@ def chemist_node(state: dict, config: dict) -> Command:
                             updated_metadata.update(docking_metadata)
                 
                 elif isinstance(message, ToolMessage) and message.name in ["retrosynthesis_tree_search"]:
-                    try:
-                        result = ast.literal_eval(message.content)
-                    except Exception:
+                    result = _parse_tool_content(message.content)
+                    if result is None:
                         continue
+                    if isinstance(result, dict):
+                        print(f"RETRO RESULT KEYS: {list(result.keys())[:10]}")
                     updated_metadata.update({"retrosynthesis": result})
 
                 elif isinstance(message, ToolMessage) and message.name in ["classify_reaction"]:
-                    try:
-                        result = ast.literal_eval(message.content)
-                    except Exception:
+                    result = _parse_tool_content(message.content)
+                    if result is None:
                         continue
                     updated_metadata.update({"reaction_classification": result})
 
                 elif isinstance(message, ToolMessage) and message.name in ["forward_predict"]:
-                    try:
-                        result = ast.literal_eval(message.content)
-                    except Exception:
+                    result = _parse_tool_content(message.content)
+                    if result is None:
                         continue
                     updated_metadata.update({"forward_prediction": result})
 

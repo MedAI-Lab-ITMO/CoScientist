@@ -5,6 +5,8 @@ import logging
 import os
 import streamlit as st
 import threading
+import re
+from typing import Optional, List
 from typing import Optional
 
 from io import BytesIO
@@ -409,6 +411,8 @@ def message_handler(user_query: str, placeholder: st.delta_generator.DeltaGenera
                             #os.remove(file)
 
                     # Store metadata in the message for later display
+                    
+                    logger.info(f"RESULT METADATA: {result}")
                     if "paper_analysis" in result["metadata"].keys():
                         st.session_state.messages[-1]["paper_analysis"] = result["metadata"]["paper_analysis"]
                         # Display the metadata immediately after storing it
@@ -692,10 +696,13 @@ def _reaction_smiles_to_image(reaction_smiles: str):
 
 
 def _render_reaction_smiles(reaction_smiles: str, caption: Optional[str] = None):
+    logger.info(f"RENDERING REACTION SMILES: {reaction_smiles}")
     normalized = reaction_smiles
     if isinstance(normalized, str):
         normalized = normalized.replace(" -> ", ">>").replace(" → ", ">>")
         normalized = normalized.replace(" + ", ".")
+        normalized = re.sub(r">{3,}", ">>", normalized)
+        normalized = re.sub(r">>\s*>>", ">>", normalized)
     img = _reaction_smiles_to_image(normalized)
     if img is not None:
         st.image(img, caption=caption)
@@ -704,6 +711,7 @@ def _render_reaction_smiles(reaction_smiles: str, caption: Optional[str] = None)
 
 
 def display_retrosynthesis_metadata(message):
+    logger.info(f"DISPLAYING RETROSYNTHESIS METADATA: {message}")
     data = message.get("retrosynthesis") or {}
     if not data:
         return
@@ -762,10 +770,13 @@ def display_retrosynthesis_metadata(message):
                 continue
             for step_idx, step in enumerate(steps, start=1):
                 reaction_smiles = step.get("reaction_smiles") or step.get("mapped_smiles")
+                logger.info(f"REACTION SMILES: {reaction_smiles}")
+                logger.info(f"STEP: {step}")
                 caption = f"Step {step_idx}"
                 if step.get("plausibility") is not None:
                     caption += f" | plausibility={step.get('plausibility')}"
                 if reaction_smiles:
+                    logger.info(f"RENDERING REACTION SMILES: {reaction_smiles}")
                     _render_reaction_smiles(reaction_smiles, caption=caption)
                 else:
                     st.markdown(f"**Step {step_idx}**")
@@ -788,10 +799,6 @@ def display_forward_prediction_metadata(message):
     if backend or model_name:
         st.markdown(f"**Backend:** `{backend}`  **Model:** `{model_name}`")
     inputs = data.get("inputs") or []
-    if inputs:
-        st.markdown("**Inputs:**")
-        for item in inputs:
-            st.code(item)
     predictions = data.get("predictions") or []
     if predictions and isinstance(predictions, list):
         predictions = sorted(
@@ -804,16 +811,16 @@ def display_forward_prediction_metadata(message):
         return
     if len(inputs) == 1:
         base = inputs[0]
-        for idx, pred in enumerate(predictions, start=1):
+        pred = predictions[0] if predictions else None
+        if pred:
             prod = pred.get("smiles")
             score = pred.get("score")
-            if not prod:
-                continue
-            reaction_smiles = f"{base}>>{prod}"
-            caption = f"Prediction {idx}"
-            if score is not None:
-                caption += f" | score={score}"
-            _render_reaction_smiles(reaction_smiles, caption=caption)
+            if prod:
+                reaction_smiles = f"{base}>>{prod}"
+                caption = "Best prediction"
+                if score is not None:
+                    caption += f" | score={score}"
+                _render_reaction_smiles(reaction_smiles, caption=caption)
     else:
         rows = [{"smiles": p.get("smiles"), "score": p.get("score")} for p in predictions]
         st.dataframe(rows)

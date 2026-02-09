@@ -129,8 +129,8 @@ def classify_reaction_smiles(smiles: List[str], num_results: int = 10) -> Dict[s
 
 def forward_predict_products(
     smiles: List[str],
-    backend: str,
-    model_name: str = "wldn5",
+    backend: str = "wldn5",
+    model_name: str = "pistachio",
     reagents: str = "",
     solvent: str = "",
 ) -> Dict[str, Any]:
@@ -178,6 +178,7 @@ def forward_predict_products(
             error_msg = "Forward Prediction API returned None JSON response"
             logger.error(error_msg)
             raise ValueError(error_msg)
+        logger.info(f"FORWARD PREDICTION JSON RESPONSE: {json_response}")
         return json_response
     except requests.exceptions.RequestException as e:
         error_msg = (
