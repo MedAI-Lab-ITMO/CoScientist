@@ -557,9 +557,9 @@ def init_downloaded_papers():
     downloads_container = st.container(border=True)
     with downloads_container:
         if st.session_state.language == "English":
-            st.header("Downloaded Papers")
+            st.header("Papers Search Results")
         else:
-            st.header("Скачанные статьи")
+            st.header("Результаты поиска статей")
         _render_downloaded_papers()
 
 
@@ -575,13 +575,11 @@ def _render_downloaded_papers():
 
     match st.session_state.language:
         case "English":
-            title = "Downloaded papers"
+            title = "Papers Search Results"
             import_label = "Import"
-            view_label = "Open"
         case _:
-            title = "Скачанные статьи"
+            title = "Результаты поиска статей"
             import_label = "Импортировать"
-            view_label = "Открыть"
 
     with st.expander(title):
         st.markdown(
@@ -617,51 +615,45 @@ def _render_downloaded_papers():
             unsafe_allow_html=True,
         )
         selected = st.multiselect(
-            "",
+            "Select papers",
             options=files,
             key="downloaded_papers_selection",
             help="Select papers to import for processing",
+            label_visibility="collapsed",
         )
 
-        # Buttons stacked vertically: Import then Open
+        # Buttons stacked vertically: Import then Download
         if st.button(import_label, key="import_downloaded_papers", use_container_width=True):
             load_downloaded_papers()
 
-        if st.button(view_label, key="view_selected_downloaded_papers", use_container_width=True):
-            selection = st.session_state.get("downloaded_papers_selection", []) or []
-            if not selection:
-                st.toast("No papers selected", icon="⚠️")
-            else:
-                js_parts = []
-                for fname in selection:
-                    path = os.path.join(downloads_dir, fname)
-                    try:
-                        with open(path, "rb") as _f:
-                            file_b64 = base64.b64encode(_f.read()).decode("utf-8")
-
-                        js = f"""
-                        (function() {{
-                            var w = window.open("");
-                            if (!w) {{ return; }}
-                            var iframe = w.document.createElement('iframe');
-                            iframe.style.position = 'fixed';
-                            iframe.style.left = '0';
-                            iframe.style.top = '0';
-                            iframe.style.width = '100%';
-                            iframe.style.height = '100%';
-                            iframe.style.border = 'none';
-                            iframe.src = 'data:application/pdf;base64,{file_b64}';
-                            w.document.body.style.margin = '0';
-                            w.document.body.appendChild(iframe);
-                        }})();
-                        """
-                        js_parts.append(js)
-                    except Exception as e:
-                        st.write(f"Could not read {fname} for viewing: {e}")
-
-                if js_parts:
-                    html = "<script>" + "\n".join(js_parts) + "</script>"
-                    components.html(html, height=0)
+        # Show download buttons for selected papers
+        selection = st.session_state.get("downloaded_papers_selection", []) or []
+        if selection:
+            st.markdown("**Download selected papers:**")
+            for fname in selection:
+                path = os.path.join(downloads_dir, fname)
+                try:
+                    if not os.path.exists(path):
+                        st.error(f"❌ {fname}: File not found")
+                        continue
+                    
+                    with open(path, "rb") as _f:
+                        file_data = _f.read()
+                        
+                        if not file_data.startswith(b'%PDF'):
+                            st.error(f"❌ {fname}: Invalid PDF format")
+                            continue
+                        
+                        st.download_button(
+                            label=f"⬇️ {fname}",
+                            data=file_data,
+                            file_name=fname,
+                            mime="application/pdf",
+                            use_container_width=True,
+                            key=f"download_{fname}"
+                        )
+                except Exception as e:
+                    st.error(f"❌ {fname}: {str(e)}")
 
 
 def load_downloaded_papers():

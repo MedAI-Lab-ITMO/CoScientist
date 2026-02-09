@@ -265,9 +265,9 @@ conf = {
                     7. You must include all information you see in user prompt to your plan
                     8. If you get a general question about chemistry first call paper_analysis_agent. Use web search
                     only if paper_analysis_agent has no answer. 
-                    9. If you get a query to find papers by author, journal or institution, create two sequential subtasks
-                    with papers_search_agent: first resolve the author's/journal's/institution's OpenAlex ID, then search for
-                    papers using that ID.
+                    9. If you get a query to find or download papers, use papers_search_agent:
+                       - For topic-based searches (e.g., "Download papers about CRISPR CAS"), directly search for papers using that topic.
+                       - For author, journal, or institution searches, create two sequential subtasks: first resolve the entity's OpenAlex ID, then search for papers using that ID.
                     """,
                 "desc_restrictions": """
                     - You cant name agents
@@ -311,6 +311,14 @@ conf = {
                         "steps": [
                             ["Search OpenAlex for author ID for 'Jane Q. Researcher'"],
                             ["Search OpenAlex for papers by the found author ID about quantum dots"]
+                        ]
+                    }
+
+                    Example 5 (topic search):
+                    Request: "Download papers about CRISPR CAS"
+                    Response: {
+                        "steps": [
+                            ["Search and download papers about CRISPR CAS"]
                         ]
                     }
                     """,
