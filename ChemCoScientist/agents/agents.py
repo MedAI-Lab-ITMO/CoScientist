@@ -381,14 +381,8 @@ def paper_analysis_agent(state: dict, config: dict) -> Command:
 
     task = state["task"]
 
-    # TODO: update this when proper frontend is added
-    try:
-        current_prompt = f'{paper_agent_prompt}\n session_id = {config["configurable"]["session_id"]}'
-    except:
-        current_prompt = f'{paper_agent_prompt}\nsession_id is not needed in this case, pass 1'
-
     paper_analysis_agent = create_react_agent(
-        llm, paper_analysis_tools, state_modifier=current_prompt
+        llm, paper_analysis_tools, state_modifier=paper_agent_prompt
     )
 
     for attempt in range(3):

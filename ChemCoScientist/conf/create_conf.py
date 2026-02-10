@@ -173,6 +173,7 @@ conf = {
     "recursion_limit": 25,
     "configurable": {
         "user_id": "1",
+        "session_id": "1",
         "visual_model": create_llm_connector(os.environ["VISION_LLM_URL"]),
         "img_path": "image.png",
         "llm": create_llm_connector(

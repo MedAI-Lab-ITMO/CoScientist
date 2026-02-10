@@ -23,11 +23,6 @@ conf = {
                 base_url=os.environ["MAIN_LLM_URL"],
                 api_key=os.environ["OPENAI_API_KEY"],
                 temperature=0.1),
-        "embedder": {
-            "base_url": os.environ["EMBEDDING_LLM_URL"],
-            "model": os.environ["EMBEDDING_LLM_MODEL"],
-            "api_key": os.environ["OPENAI_API_KEY"]
-        },
         "img_path": "image.png",
         "llm": create_llm_connector(
             f"{os.environ['MAIN_LLM_URL']};{os.environ['MAIN_LLM_MODEL']}",
