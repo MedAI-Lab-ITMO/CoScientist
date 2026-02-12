@@ -2,6 +2,7 @@ import ast
 import os
 import time
 import json
+import logging
 from typing import Annotated
 import operator
 import streamlit as st
@@ -21,9 +22,12 @@ from ChemCoScientist.agents.agents_prompts import (
 )
 from ChemCoScientist.tools import chem_tools, nanoparticle_tools, paper_analysis_tools, data_tools, chem_ocr_tools
 from ChemCoScientist.tools.ml_tools import agents_tools as automl_tools
+from ChemCoScientist.download_papers.functions import download_papers
 
 from ChemCoScientist.agents.agents_prompts import paper_agent_prompt, coder_prompt
 from definitions import ROOT_DIR
+
+logger = logging.getLogger(__name__)
 
 
 def get_all_files(directory: str):
@@ -344,11 +348,11 @@ def paper_analysis_agent(state: dict, config: dict) -> Command:
         Command: An object containing the next step in the process ('replan' or `END`) and
         updates to the state, including recorded steps, responses, and extracted metadata.
     """
-    print("--------------------------------")
-    print("Paper agent called")
-    print(f"Current task: {state['task']}")
-    print(f"Current input: {state['input']}")
-    print("--------------------------------")
+    logger.info("--------------------------------")
+    logger.info("Paper agent called")
+    logger.info(f"Current task: {state['task']}")
+    logger.info(f"Current input: {state['input']}")
+    logger.info("--------------------------------")
 
     llm: BaseChatModel = config["configurable"]["llm"]
 
@@ -385,7 +389,7 @@ def paper_analysis_agent(state: dict, config: dict) -> Command:
                 "metadata": Annotated[dict, operator.or_](updated_metadata),
             })
         except Exception as e:
-            print(f"Paper analysis agent error: {str(e)}. Retrying ({attempt + 1}/3)")
+            logger.error(f"Paper analysis agent error: {str(e)}. Retrying ({attempt + 1}/3)")
             time.sleep(1.2 ** attempt)
 
     return Command(goto=END, update={
@@ -459,3 +463,60 @@ def chem_ocr_agent(state: dict, config: dict) -> Command:
         "response": "I cannot extract molecules or reactions right now."
                     "Can I help with something else?"
     })
+
+
+def papers_search_agent(state: dict, config: dict) -> Command:
+    """
+    Searches for entity IDs or scientific papers based on user query and downloads papers' PDFs.
+
+    This agent utilizes the OpenAlex API to find and download 
+    PDFs of scientific papers relevant to the user's specified topic or query.
+
+    Args:
+        state (dict): The current state of the interaction, including the user's task.
+        config (dict): Configuration settings, including the language model to use.
+
+    Returns:
+        Command: An object containing the next step in the process ('replan' or `END`) and
+        updates to the state, including recorded steps, responses, and extracted metadata.
+    """
+    logger.info("--------------------------------")
+    logger.info("Papers search and download agent called")
+    logger.info(f"Current task: {state['task']}")
+    logger.info(f"Current input: {state['input']}")
+    logger.info("--------------------------------")
+
+    task = state["task"]
+
+    for attempt in range(3):
+        try:            
+            result = download_papers(task)
+            
+            answer_serialized = json.dumps(result["answer"], sort_keys=True)
+
+            updated_metadata = state.get("metadata", {}).copy()
+            downloaded_papers_metadata = {"downloaded_papers": result.get("metadata", None)}
+            if downloaded_papers_metadata["downloaded_papers"]:
+                if "downloaded_papers" in updated_metadata.keys():
+                    updated_metadata["downloaded_papers"].update(downloaded_papers_metadata["downloaded_papers"])
+                else:
+                    updated_metadata.update(downloaded_papers_metadata)
+
+            return Command(update={
+                "past_steps": Annotated[set, operator.or_](set([
+                    (task, answer_serialized)
+                ])),
+                "nodes_calls": Annotated[set, operator.or_](set([
+                    ("papers_search_agent", (("text", answer_serialized),))
+                ])),
+                "metadata": Annotated[dict, operator.or_](updated_metadata),
+            })
+        except Exception as e:
+            logger.error(f"Papers search agent error: {str(e)}. Retrying ({attempt + 1}/3)")
+            time.sleep(1.2 ** attempt)
+
+    return Command(goto=END, update={
+        "response": "I cannot download papers right now."
+                    "Can I help with something else?"
+    })
+

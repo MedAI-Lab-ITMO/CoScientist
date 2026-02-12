@@ -44,8 +44,8 @@ def explore_chemistry_database(task: str) -> dict:
             about the request (model used, token count, etc.).
     """
     try:
-        print('Running explore_chemistry_database tool...')
-        print(f'task: {task}')
+        logger.info('Running explore_chemistry_database tool...')
+        logger.info(f'task: {task}')
         paper_store = ChromaDBPaperStore()
         return process_question(task, paper_store)
     except Exception as e:
@@ -71,8 +71,8 @@ def explore_my_papers(task: str, config: RunnableConfig) -> dict:
               about the request (e.g., model used, token count).  
               Returns an error message if no papers are provided or if data extraction fails.
     """
-    print('Running explore_my_papers tool...')
-    print(f'task: {task}')
+    logger.info('Running explore_my_papers tool...')
+    logger.info(f'task: {task}')
 
     session_id = config.get("configurable", {}).get("session_id", "1")
     try:
@@ -88,13 +88,13 @@ def explore_my_papers(task: str, config: RunnableConfig) -> dict:
                 return {'answer': 'No papers provided for search.'}
             papers = SELECTED_PAPERS[session_id]
 
-        print(f'PAPERS from explore_my_papers: {papers}')
+        logger.info(f'PAPERS from explore_my_papers: {papers}')
 
         if MOLECULE_DATA.get(session_id, []):
-            print(f'Reading PDF image description from memory')
+            logger.info(f'Reading PDF image description from memory')
             img_descriptions = MOLECULE_DATA.get(session_id)
         else:
-            print(f'Requesting PDF image description from server...')
+            logger.info(f'Requesting PDF image description from server...')
             img_descriptions = 'This is additional information about the reactions and molecules that are presented' \
                             'on the images in the paper. They are passed in the same order as papers themselves.' \
                             'Use them to answer the question.\n\n'
@@ -150,8 +150,8 @@ def select_papers(query: str, papers_num: int = 15, final_papers_num: int = 3) -
         dict: A dictionary containing the retrieved papers.  Returns an error message if no papers are found.
     """
     try:
-        print('Running select_papers tool...')
-        print(f'query: {query}')
+        logger.info('Running select_papers tool...')
+        logger.info(f'query: {query}')
         paper_store = ChromaDBPaperStore()
         res_papers = paper_store.search_for_papers(query, papers_num, final_papers_num)
         return {"answer": res_papers}
@@ -180,18 +180,23 @@ def create_dataset_from_papers(task: str, config: RunnableConfig) -> pd.DataFram
     """
     logger.info('Running create_dataset_from_papers tool...')
     logger.info(f'task: {task}')
+    
     session_id = config.get("configurable", {}).get("session_id", "1")
     try:
         # TODO: remove when proper frontend is added
         if not SELECTED_PAPERS:
-            directory = Path(os.environ.get('MY_PAPERS_PATH'))
-            papers = [str(f.resolve()) for f in directory.iterdir() if f.is_file() and f.suffix.lower() == '.pdf']
+            my_papers_directory = Path(os.environ.get('MY_PAPERS_PATH'))
+            papers = [str(f.resolve()) for f in my_papers_directory.iterdir() if f.is_file() and f.suffix.lower() == '.pdf']
 
             if not papers:
-                return {'answer': 'No papers provided for search.'}
+                downloaded_papers_directory = Path(os.environ.get('DOWNLOADED_PAPERS_PATH'))
+                papers = [str(f.resolve()) for f in downloaded_papers_directory.iterdir() if f.is_file() and f.suffix.lower() == '.pdf']
+
+                if not papers:
+                    return {'answer': ('No papers provided for search.')}
         else:
             if not SELECTED_PAPERS.get(session_id, []):
-                return {'answer': 'No papers provided for search.'}
+                return {'answer': ('No papers provided for search.')}
             papers = SELECTED_PAPERS[session_id]
 
         final_dataset_path, res_img_path = extract_mols_prop_dataset(VISION_LLM_URL, task, papers, session_id)
