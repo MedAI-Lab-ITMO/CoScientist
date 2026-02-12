@@ -20,7 +20,7 @@ from ChemCoScientist.agents.agents import (
 )
 #from CoScientist.scientific_agents.agents import coder_agent
 from ChemCoScientist.tools import chem_tools_rendered, nano_tools_rendered, tools_rendered, data_tools_rendered, \
-    paper_analysis_tools_rendered, chem_ocr_tools_rendered, download_papers_tools_rendered
+    paper_analysis_tools_rendered, chem_ocr_tools_rendered
 from definitions import ROOT_DIR
 
 
@@ -247,8 +247,7 @@ conf = {
             "ml_dl_agent": [automl_agent_description],
             "paper_analysis_agent": [paper_analysis_tools_rendered],
             "web_search": [web_search_description],
-            "chem_ocr_agent": [chem_ocr_tools_rendered],
-            "download_papers_agent": [download_papers_tools_rendered],
+            "chem_ocr_agent": [chem_ocr_tools_rendered]
         },
         # full descripton for agents tools
         "tools_descp": tools_rendered + additional_agents_description,

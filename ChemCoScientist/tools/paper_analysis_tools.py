@@ -73,6 +73,8 @@ def explore_my_papers(task: str, config: RunnableConfig) -> dict:
     """
     logger.info('Running explore_my_papers tool...')
     logger.info(f'task: {task}')
+
+    session_id = config.get("configurable", {}).get("session_id", "1")
     try:
         # TODO: remove when proper frontend is added
         if not SELECTED_PAPERS:
@@ -178,10 +180,8 @@ def create_dataset_from_papers(task: str, config: RunnableConfig) -> pd.DataFram
     """
     logger.info('Running create_dataset_from_papers tool...')
     logger.info(f'task: {task}')
-<<<<<<< HEAD
+    
     session_id = config.get("configurable", {}).get("session_id", "1")
-=======
->>>>>>> d0634a0 (fix in conf, fix in frontend, removed prints)
     try:
         # TODO: remove when proper frontend is added
         if not SELECTED_PAPERS:
