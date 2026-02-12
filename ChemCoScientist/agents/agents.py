@@ -20,7 +20,7 @@ from ChemCoScientist.agents.agents_prompts import (
     worker_prompt,
     chem_ocr_prompt
 )
-from ChemCoScientist.tools import chem_tools, nanoparticle_tools, paper_analysis_tools, data_tools
+from ChemCoScientist.tools import chem_tools, nanoparticle_tools, paper_analysis_tools, data_tools, chem_ocr_tools
 from ChemCoScientist.tools.ml_tools import agents_tools as automl_tools
 from ChemCoScientist.download_papers.functions import download_papers
 
