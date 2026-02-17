@@ -178,7 +178,7 @@ def clean_up_html(
     return soup.prettify(), image_url_mapping
     
 
-def html_chunking(html_string: str, paper_name: str) -> list:
+def html_chunking(html_string: str, paper_name: str, paper_summary) -> list:
     """
     Chunks an HTML string into semantic passages for efficient information retrieval.
     
@@ -218,6 +218,11 @@ def html_chunking(html_string: str, paper_name: str) -> list:
         doc.page_content = "passage: " + doc.page_content  # Maybe delete "passage: " addition
         doc.metadata["imgs_in_chunk"] = str(extract_img_url(doc.page_content, paper_name))
         doc.metadata["source"] = paper_name + ".pdf"
+        doc.metadata["paper_title"] = paper_summary.paper_title
+        doc.metadata["publication_year"] = paper_summary.publication_year
+        doc.metadata["paper_authors"] = paper_summary.paper_authors
+        doc.metadata["publication_source"] = paper_summary.publication_source
+        doc.metadata["research_area"] = paper_summary.research_area
 
     return documents
 
