@@ -714,7 +714,7 @@ def classify_reaction(
 def forward_predict(
     smiles: Annotated[List[str], "Batch of reaction inputs (reactants)"],
     backend: Annotated[str, "One of: wldn5, graph2smiles, augmented_transformer"],
-    model_name: Annotated[str, "Model name for backend"] = "pistachio",
+    retrosynthesis_model_name: Annotated[str, "Model name for backend"] = "pistachio",
     reagents: Annotated[str, "Reagents string"] = "",
     solvent: Annotated[str, "Solvent string"] = "",
 ) -> Dict:
@@ -739,7 +739,7 @@ def forward_predict(
         return forward_predict_products(
             smiles=smiles,
             backend=backend,
-            model_name=model_name,
+            model_name=retrosynthesis_model_name,
             reagents=reagents,
             solvent=solvent,
         )
