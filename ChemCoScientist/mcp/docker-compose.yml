@@ -1,0 +1,15 @@
+services:
+  papers-search-mcp:
+    build:
+      context: ../..
+      dockerfile: ChemCoScientist/mcp/Dockerfile
+    container_name: papers-search-mcp
+    env_file:
+      - ../../config.env
+    environment:
+      DOWNLOADED_PAPERS_PATH: /app/downloaded_papers
+    volumes:
+      - ../../downloaded_papers:/app/downloaded_papers
+    ports:
+      - "7331:7331"
+    restart: unless-stopped
