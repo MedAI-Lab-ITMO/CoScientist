@@ -8,3 +8,8 @@ Leave `[ ]` when there is no MCP coverage yet, but tool exist.
 - [ ] `Training models for molecule generation`
 - [ ] `AutoML for molecules properties predictions`
 - [ ] `AutoMl training for molecules properties predictions`
+- [ ] `Answer questions using DB with scientific papers`
+- [ ] `Answer questions using uploaded papers`
+- [ ] `Find relevant papers in DB`
+- [ ] `Create dataset from papers`
+- [ ] `Search and download papers from OpenAlex`
