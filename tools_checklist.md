@@ -16,3 +16,8 @@ Leave `[ ]` when there is no MCP coverage yet, but tool exist.
 - [x] `Retrosynthesis route search`
 - [x] `Forward reaction product prediction`
 - [x] `Reaction classification`
+- [ ] `Nanoparticle synthesis procedure generation based on a given description`
+- [ ] `Prediction of the entrapment efficiency of a nanomaterial based on its descriptive text`
+- [ ] `Shape of a nanomaterial prediction from its descriptive text`
+- [ ] `Generates an image representation of a nanoparticle based on its specified shape.`
+- [ ] `Analyzes images to determine the shape of nanoparticles present.`
