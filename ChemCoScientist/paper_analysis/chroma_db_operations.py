@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field
 import requests
 
 from ChemCoScientist.chemical_utils.openchemie_functions import extract_molecules_from_figure, extract_reactions_from_figure
+from ChemCoScientist.paper_analysis.constants import ResearchArea
 from ChemCoScientist.paper_analysis.prompts import summarisation_prompt
 from ChemCoScientist.paper_analysis.settings import allowed_providers
 from ChemCoScientist.paper_analysis.settings import settings as default_settings
@@ -63,18 +64,7 @@ class ExpandedSummary(BaseModel):
     publication_source: str = Field(
         description="Source where the paper was published. If the source is not explicitly specified, use the default value - 'NO SOURCE'"
     )
-    research_area: Literal[
-        "Polymer Chemistry",
-        "Organic Chemistry",
-        "Nanomaterials",
-        "Molecular Dynamics",
-        "Membrane Chemistry",
-        "Electrochemistry",
-        "DFT",
-        "Biological Macromolecules",
-        "Biological Chemistry",
-        "Analytical Chemistry"
-    ] = Field(
+    research_area: ResearchArea = Field(
         description="Area or field of chemistry the paper is about. Must be one of the predefined values."
         " If the area has no match in the predefined list or is hard to determine, use the default value - 'OTHER'"
     )

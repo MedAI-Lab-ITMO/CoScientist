@@ -12,12 +12,12 @@ from pypdf import PdfReader, PdfWriter
 from io import BytesIO
 
 from ChemCoScientist.paper_analysis.chroma_db_operations import ChromaDBPaperStore
+from ChemCoScientist.paper_analysis.constants import ResearchArea
 from ChemCoScientist.paper_analysis.prompts import sys_prompt, explore_my_papers_prompt, extract_query_filters_prompt
 from ChemCoScientist.paper_analysis.settings import allowed_providers
 from CoScientist.paper_parser.utils import convert_to_base64, prompt_func, load_image_as_binary
 from ChemCoScientist.chemical_utils.openchemie_functions import *
 from definitions import CONFIG_PATH
-from typing import Literal
 
 load_dotenv(CONFIG_PATH)
 
@@ -46,18 +46,7 @@ class QueryFilters(BaseModel):
         description="Journal or publication source name",
         default=None
     )
-    research_area: Literal[
-        "Polymer Chemistry",
-        "Organic Chemistry",
-        "Nanomaterials",
-        "Molecular Dynamics",
-        "Membrane Chemistry",
-        "Electrochemistry",
-        "DFT",
-        "Biological Macromolecules",
-        "Biological Chemistry",
-        "Analytical Chemistry"
-    ] | None = Field(
+    research_area: ResearchArea | None = Field(
         description="Research area/field of chemistry",
         default=None
     )
