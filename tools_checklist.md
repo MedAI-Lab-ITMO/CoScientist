@@ -21,3 +21,8 @@ Leave `[ ]` when there is no MCP coverage yet, but tool exist.
 - [ ] `Shape of a nanomaterial prediction from its descriptive text`
 - [ ] `Generates an image representation of a nanoparticle based on its specified shape.`
 - [ ] `Analyzes images to determine the shape of nanoparticles present.`
+- [ ] `Docking calculation`
+- [ ] `Exctract molecules from pdf`
+- [ ] `Exctract molecules from figure`
+- [ ] `Exctract reactions from pdf`
+- [ ] `Exctract reactions from figure`
