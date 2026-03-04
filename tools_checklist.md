@@ -26,3 +26,8 @@ Leave `[ ]` when there is no MCP coverage yet, but tool exist.
 - [ ] `Exctract molecules from figure`
 - [ ] `Exctract reactions from pdf`
 - [ ] `Exctract reactions from figure`
+- [ ] `Convert IUPAC name to SMILES`
+- [ ] `Convert SMILES to IUPAC name`
+- [ ] `Get all RDKit properties from SMILES`
+- [ ] `Get html visualization of SMILES`
+- [ ] `Fetch activities from Chembl or Bindingdb via proteinId or proteinName`
