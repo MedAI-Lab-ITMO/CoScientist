@@ -267,8 +267,6 @@ def chemist_node(state: dict, config: dict) -> Command:
                     
             updated_metadata = state.get("metadata", {}).copy()
             for message in agent_response["messages"]:
-                if isinstance(message, ToolMessage):
-                    print(f"TOOL MESSAGE: {message.name}")
                 if isinstance(message, ToolMessage) and message.name in ["detect_molecules", "detect_reactions", "extract_reactions"]:
                     result = json.loads(message.content)
                     ocr_metadata = {"chem_ocr": result.get("metadata", None)}
@@ -291,8 +289,6 @@ def chemist_node(state: dict, config: dict) -> Command:
                     result = _parse_tool_content(message.content)
                     if result is None:
                         continue
-                    if isinstance(result, dict):
-                        print(f"RETRO RESULT KEYS: {list(result.keys())[:10]}")
                     updated_metadata.update({"retrosynthesis": result})
 
                 elif isinstance(message, ToolMessage) and message.name in ["classify_reaction"]:

@@ -741,10 +741,6 @@ def forward_predict(
     except Exception as e:
         logger.error(f"forward_predict ERROR: {e}")
         return {"answer": "Could not run forward prediction."}
-        "answer": {"affinity": affinity, "errors": errors},
-        "metadata": {"html_file": output_file} if output_file else {},
-    }
-
 
 if __name__ == "__main__":
     mcp.run(transport="http", host="0.0.0.0", port=7331, path="/mcp")
