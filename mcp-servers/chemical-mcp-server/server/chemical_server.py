@@ -18,7 +18,7 @@ from fastmcp import FastMCP
 import rdkit.Chem as Chem
 from rdkit.Chem import AllChem
 from rdkit.Chem.Descriptors import CalcMolDescriptors
-
+from .retrosynthesis import retrosynthesis_result, classify_reaction_smiles, forward_predict_products
 from .chemical_functions import calculate_docking_score
 from .ocr_pipeline import molecules_ocr, reactions_ocr
 
