@@ -4,11 +4,13 @@ WORKDIR /app
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
+COPY pyproject.toml README.md .
+RUN uv sync --no-dev
+
 COPY . . 
 
 ENV UV_SYSTEM_PYTHON=1
 
-RUN uv sync --no-dev
 
 EXPOSE 7331
 
