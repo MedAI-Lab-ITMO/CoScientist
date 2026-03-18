@@ -72,18 +72,14 @@ async def fedot_tool(task_description: str) -> Dict[str, Any]:
             ),
         })
 
-    # Generate pipeline config
-    # config = await mas.generate_config(task_description)
 
-    # Run pipeline (assuming MAS has run/execute method)
-    # result = await mas.run(config)
     result = await mas.run(task_description)
 
     return {
         "status": "success",
         "result": result,
-        "coordinator": config.coordinator.name,
-        "num_workers": len(config.workers),
+        # "coordinator": config.coordinator.name,
+        # "num_workers": len(config.workers),
     }
 
 fedot_agent = LlmAgent(
