@@ -12,9 +12,8 @@ from google.adk.tools.mcp_tool.mcp_session_manager import StdioConnectionParams,
 import os
 import asyncio
 
-from utils import logger
-
 from coscientist.agents import orchestrator_agent
+from coscientist.utils import logger
 
 
 # InMemorySessionService is simple, non-persistent storage for this tutorial.
@@ -74,7 +73,7 @@ async def call_agent_async(query: str, runner, user_id, session_id):
 
 # We need an async function to await our interaction helper
 async def run_conversation():
-    await call_agent_async("Calculate alzheimer score of SMILES CCCO using automl model",
+    await call_agent_async("Найди в научной литературе порог активности IC50 для Склероза. Затем сгенерируй 10 молекул для Склероза и предскажи их свойства.",
                                        runner=runner,
                                        user_id=USER_ID,
                                        session_id=SESSION_ID)
