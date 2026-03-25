@@ -1,13 +1,10 @@
 import base64
-import asyncio
 import json
 import logging
 import os
-import re
+import uuid
 from io import StringIO
-from pathlib import Path
 from typing import Annotated, Dict, List, Optional
-from urllib.parse import quote
 
 import aiohttp
 import pandas as pd
@@ -18,315 +15,35 @@ from fastmcp import FastMCP
 import rdkit.Chem as Chem
 from rdkit.Chem import AllChem
 from rdkit.Chem.Descriptors import CalcMolDescriptors
-from .retrosynthesis import retrosynthesis_result, classify_reaction_smiles, forward_predict_products
-from .chemical_functions import calculate_docking_score
-from .ocr_pipeline import molecules_ocr, reactions_ocr
+
+from .clients.affinity_db import (
+    VALID_AFFINITY_TYPES,
+    fetch_affinity_bindingdb,
+    fetch_chembl_data,
+    fetch_uniprot_id,
+)
+from .clients.chemical_client import ChemServiceError
+from .config import get_settings
+from .ocr_pipeline import (
+    extract_molecules_from_image_urls,
+    extract_reactions_from_image_urls,
+)
+from .retrosynthesis import (
+    classify_reaction_smiles,
+    forward_predict_products,
+    retrosynthesis_result,
+)
+from .service_resources import chem_service, s3_service
 
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-CHEMBL_BASE = "https://www.ebi.ac.uk/chembl/api/data"
-VALID_AFFINITY_TYPES = {"Ki", "Kd", "IC50", "EC50"}
-
-
 mcp = FastMCP("ChemTools")
 
 
-def _run_async(coro):
-    """Run async coroutine from both sync and async contexts."""
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        loop = None
-
-    if loop and loop.is_running():
-        # running in async env (e.g. LangChain)
-        return asyncio.ensure_future(coro)
-    else:
-        # safe to call asyncio.run()
-        return asyncio.run(coro)
-
-
-async def fetch_uniprot_id(
-    session: aiohttp.ClientSession,
-    protein_name: str,
-    organism_id: int = 9606,
-    max_retries: int = 5,
-    delay: float = 0.5
-) -> Optional[str]:
-    """
-    Asynchronously fetch UniProt ID for a given protein name.
-    Retries up to `max_retries` times in case of network or transient API errors.
-    """
-    url = "https://rest.uniprot.org/uniprotkb/search"
-    params = {
-        "query": f"{protein_name} AND organism_id:{organism_id}",
-        "format": "json",
-        "size": 1,
-        "fields": "accession",
-    }
-
-    for attempt in range(max_retries):
-        try:
-            async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=15)) as resp:
-                if resp.status != 200:
-                    await asyncio.sleep(delay * (1 + attempt * 0.5))
-                    continue
-                data = await resp.json()
-                results = data.get("results", [])
-                if results:
-                    return results[0].get("primaryAccession")
-                return None
-        except asyncio.CancelledError:
-            raise
-        except Exception as e:
-            logger.error(f"[UniProt] Attempt {attempt+1} failed: {str(e)}")
-            await asyncio.sleep(delay * (1 + attempt * 0.5))
-    return None
-
-
-async def fetch_affinity_bindingdb(
-    session: aiohttp.ClientSession,
-    uniprot_id: str,
-    affinity_type: str,
-    cutoff: int,
-    max_retries: int = 5,
-    delay: float = 0.5
-) -> List[Dict]:
-    """
-    Asynchronously retrieve affinity values from BindingDB for a given UniProt ID.
-    Retries on network errors or incomplete data.
-    """
-    url = (
-        f"http://bindingdb.org/rest/getLigandsByUniprot?"
-        f"uniprot={uniprot_id};{cutoff}&response=application/json"
-    )
-
-    get_smiles = lambda x: re.sub(r'\s*\|.*\|$', '', x)
-
-    for attempt in range(max_retries):
-        try:
-            async with session.get(url, timeout=aiohttp.ClientTimeout(total=60)) as resp:
-                if resp.status != 200:
-                    logger.error(f"[BindingDB] HTTP {resp.status} for {uniprot_id}, retrying...")
-                    await asyncio.sleep(delay * (1 + attempt * 0.5))
-                    continue
-                data = json.loads(await resp.text())
-                affinities = (
-                    data.get("getLindsByUniprotResponse", {}).get("bdb.affinities", [])
-                    or data.get("bdb.affinities", [])
-                    or []
-                )
-                
-                result = [{'monomerid': a.get('bdb.monomerid'),
-                          'smiles': get_smiles(a.get('bdb.smile')),
-                           'affinity_type': a.get('bdb.affinity_type'),
-                           'affinity': a.get('bdb.affinity')} for a in affinities if a.get("bdb.affinity_type") == affinity_type]
-                return result
-        except asyncio.CancelledError:
-            raise
-        except Exception as e:
-            logger.error(f"[BindingDB] Attempt {attempt+1} failed: {str(e)}")
-            await asyncio.sleep(delay * (1 + attempt * 0.5))
-    return []
-
-
-async def _aio_fetch_json(
-    session: aiohttp.ClientSession,
-    url: str,
-    timeout: int = 30,
-    max_retries: int = 4,
-    retry_delay: float = 0.5,
-    semaphore: Optional[asyncio.Semaphore] = None
-) -> dict:
-    for attempt in range(max_retries):
-        try:
-            if semaphore:
-                async with semaphore:
-                    async with session.get(url, timeout=aiohttp.ClientTimeout(total=timeout)) as resp:
-                        if resp.status == 200:
-                            data = await resp.json()
-                            if isinstance(data, dict):
-                                return data
-            else:
-                async with session.get(url, timeout=aiohttp.ClientTimeout(total=timeout)) as resp:
-                    if resp.status == 200:
-                        data = await resp.json()
-                        if isinstance(data, dict):
-                            return data
-        except asyncio.CancelledError:
-            raise
-        except Exception:
-            pass
-        await asyncio.sleep(retry_delay * (1 + 0.5 * attempt))
-    return {}
-
-
-async def _resolve_chembl_target_id(
-    session: aiohttp.ClientSession,
-    target_name: str,
-    limit: int = 5,
-    max_retries: int = 3
-) -> str:
-    """
-    Search ChEMBL target endpoint and return first target_chembl_id.
-    Retries until valid data is obtained. Returns empty string if none found.
-    """
-    if not target_name:
-        return ""
-
-    for attempt in range(max_retries):
-        url = f"{CHEMBL_BASE}/target/search?q={quote(target_name)}&format=json&limit={limit}"
-        data = await _aio_fetch_json(session, url)
-        targets = data.get("targets", [])
-        if targets and isinstance(targets, list):
-            chembl_ids = [(target.get('target_chembl_id'), target.get('organism')) for target in targets]
-            if chembl_ids:
-                return chembl_ids
-        await asyncio.sleep(0.5 * (1 + attempt * 0.5))
-
-    return ""
-
-
-def _normalize_activities(activities, target_id, affinity_type):
-    out = []
-    for act in activities:
-        val = act.get("standard_value")
-        out.append({
-            "smiles": act.get("canonical_smiles") or "",
-            "affinity_type": affinity_type,
-            "affinity_value": float(val) if val not in (None, "", "NA") else None,
-            "affinity_units": act.get("standard_units") or "",
-            "source": "ChEMBL",
-            "target_id": target_id
-        })
-    return out
-
-
-async def _fetch_chembl_activity_async(
-    session: aiohttp.ClientSession,
-    target_id: str,
-    affinity_type: str = "Ki",
-    limit_per_page: int = 1000,
-    max_records: int = 100000,
-    semaphore: Optional[asyncio.Semaphore] = None,
-) -> List[Dict]:
-    """Fetch all ChEMBL activity pages concurrently for a given target.
-    Correct handling of total_count vs max_records (no premature return)."""
-    if affinity_type not in VALID_AFFINITY_TYPES:
-        return []
-
-    # First page (offset=0) to determine total_count and collect initial activities
-    base_url = (
-        f"{CHEMBL_BASE}/activity.json?"
-        f"target_chembl_id={quote(target_id)}&"
-        f"standard_type={quote(affinity_type)}&"
-        f"limit={limit_per_page}&offset=0&include=molecule"
-    )
-    first_data = await _aio_fetch_json(session, base_url, semaphore=semaphore)
-    if not first_data:
-        return []
-
-    activities = first_data.get("activities", []) or []
-    results = _normalize_activities(activities, target_id, affinity_type)
-
-    page_meta = first_data.get("page_meta", {}) or {}
-    try:
-        total_count = int(page_meta.get("total_count", len(results)))
-    except Exception:
-        total_count = len(results)
-
-    # Determine how many records we should fetch (cap by max_records)
-    desired_total = min(total_count, max_records)
-    already = len(results)
-    remaining = max(0, desired_total - already)
-    if remaining <= 0:
-        return results
-
-    # Build offsets for the remaining pages (start at limit_per_page)
-    offsets = list(range(limit_per_page, limit_per_page + remaining, limit_per_page))
-    # But ensure offsets do not exceed desired_total
-    offsets = [o for o in offsets if o < desired_total]
-
-    async def fetch_page(offset: int) -> List[Dict]:
-        url = (
-            f"{CHEMBL_BASE}/activity.json?"
-            f"target_chembl_id={quote(target_id)}&"
-            f"standard_type={quote(affinity_type)}&"
-            f"limit={limit_per_page}&offset={offset}&include=molecule"
-        )
-        data = await _aio_fetch_json(session, url, semaphore=semaphore)
-        acts = data.get("activities", []) if data else []
-        return _normalize_activities(acts, target_id, affinity_type)
-
-    # Limit concurrency across all pages + other targets using provided semaphore
-    tasks = [fetch_page(off) for off in offsets]
-    # run and collect (exceptions are returned)
-    page_results = await asyncio.gather(*tasks, return_exceptions=True)
-
-    for pr in page_results:
-        if isinstance(pr, list):
-            results.extend(pr)
-        # if pr is Exception or unexpected, skip (we keep previous retry logic in _aio_fetch_json)
-
-    # Trim results to desired_total in case last page(s) overshot
-    if len(results) > desired_total:
-        results = results[:desired_total]
-
-    return results   
-
-
-async def fetch_chembl_data(
-    target_name: str,
-    target_id: Optional[str] = None,
-    affinity_type: str = "Ki",
-    max_records: int = 10000,
-    concurrency_limit: int = 10,
-) -> List[Dict]:
-    """
-    High-performance concurrent ChEMBL data fetcher.
-    Fetches multiple targets and multiple pages concurrently with controlled concurrency.
-    """
-    semaphore = asyncio.Semaphore(concurrency_limit)
-    results: List[Dict] = []
-
-    async with aiohttp.ClientSession() as session:
-        # Resolve targets
-        if not target_id:
-            chembl_targets = await _resolve_chembl_target_id(session, target_name)
-            if not chembl_targets:
-                return []
-        else:
-            chembl_targets = [(target_id, "unknown")]
-
-        # Concurrently fetch all targets
-        tasks = [
-            _fetch_chembl_activity_async(
-                session=session,
-                target_id=tid,
-                affinity_type=affinity_type,
-                max_records=max_records,
-                semaphore=semaphore,
-            )
-            for tid, _ in chembl_targets
-        ]
-
-        all_data = await asyncio.gather(*tasks, return_exceptions=True)
-
-        for (tid, organism), data in zip(chembl_targets, all_data):
-            if isinstance(data, Exception):
-                continue
-            for rec in data:
-                rec["target_id"] = tid
-                rec["organism"] = organism
-            results.extend(data)
-
-    return results
-
-
 @mcp.tool()
-def fetch_activity_data(
+async def fetch_activity_data(
     source: str,
     protein_name: str,
     output_path: Annotated[str, "Full path to the output CSV file"],
@@ -355,34 +72,29 @@ def fetch_activity_data(
     if affinity_type not in VALID_AFFINITY_TYPES:
         return f"Invalid affinity type '{affinity_type}'. Must be one of {VALID_AFFINITY_TYPES}"
 
-    async def _main():
+    try:
         async with aiohttp.ClientSession() as session:
             if source == "bindingdb":
-                target_id = protein_id  # avoid shadowing outer var
+                target_id = protein_id
                 if not target_id:
                     resolved_id = await fetch_uniprot_id(session, protein_name)
                     if not resolved_id:
                         return f"[BindingDB] Could not find UniProt ID for '{protein_name}'"
                     target_id = resolved_id
 
-                entries = await fetch_affinity_bindingdb(
+                results = await fetch_affinity_bindingdb(
                     session, target_id, affinity_type, cutoff
                 )
-                return entries
-
             elif source == "chembl":
-                entries = await fetch_chembl_data(
+                results = await fetch_chembl_data(
                     target_name=protein_name,
                     target_id=protein_id,
-                    affinity_type=affinity_type
+                    affinity_type=affinity_type,
+                    session=session,
                 )
-                return entries
-
             else:
                 return f"Unsupported data source '{source}'. Use 'bindingdb' or 'chembl'."
 
-    try:
-        results = _run_async(_main())
         output_path = output_path.strip()
         if isinstance(results, list):
             out_dir = os.path.dirname(output_path)
@@ -394,7 +106,10 @@ def fetch_activity_data(
                 buffer = StringIO()
                 df.info(buf=buffer)
                 info_str = buffer.getvalue()
-                return f"The data was saved to {os.path.abspath(output_path)}. Here is info about dataset: {info_str}"
+                return (
+                    f"The data was saved to {os.path.abspath(output_path)}. "
+                    f"Here is info about dataset: {info_str}"
+                )
             return "The data was not saved because it is empty."
         return results
     except Exception as e:
@@ -408,26 +123,25 @@ def name2smiles(
     """
     Convert a molecule name to its SMILES representation.
     
-    This method attempts to retrieve the SMILES string for a given molecule name using a chemical database. It handles potential errors during the retrieval process and provides informative messages if the conversion fails.
+    This method retrieves the SMILES string for a given molecule name via PubChem (pubchempy).
     
     Args:
         mol (str): The name of the molecule to convert.
     
     Returns:
-        str: The SMILES string representation of the molecule if successful, 
-             an error message if the conversion fails after multiple attempts,
+        str: The SMILES string representation of the molecule if successful,
+             an error message if the request fails,
              or a "couldn't obtain smiles" message if the name is invalid.
     """
-    max_attempts = 3
-    for attempts in range(max_attempts):
-        try:
-            compound = pcp.get_compounds(mol, "name")
-            smiles = compound[0].canonical_smiles
-            return smiles
-        except BaseException as e:
-            # logger.exception(f"'name2smiles' failed with error: {e}")
-            return f"Failed to execute. Error: {repr(e)}"
-    return "I've couldn't obtain smiles, the name is wrong"
+    try:
+        compound = pcp.get_compounds(mol, "name")
+        if not compound:
+            return "I've couldn't obtain smiles, the name is wrong"
+        return compound[0].canonical_smiles
+    except requests.RequestException as e:
+        return f"Failed to execute. Error: {repr(e)}"
+    except (IndexError, AttributeError):
+        return "I've couldn't obtain smiles, the name is wrong"
 
 
 @mcp.tool()
@@ -442,22 +156,20 @@ def smiles2name(smiles: Annotated[str, "SMILES of a molecule"]):
         str: The IUPAC name of the molecule, or an error message if the conversion fails.
     """
 
-    url = f"https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/smiles/{smiles}/property/IUPACName/JSON"
-    max_attempts = 3
-    for attempts in range(max_attempts):
-        try:
-            response = requests.get(url)
-            if response.status_code == 200:
-                data = response.json()
-                iupac_name = data["PropertyTable"]["Properties"][0]["IUPACName"]
-                return iupac_name
-            else:
-                return "I've couldn't get iupac name"
-
-        except BaseException as e:
-            # logger.exception(f"'smiles2name' failed with error: {e}")
-            return f"Failed to execute. Error: {repr(e)}"
-    return "I've couldn't get iupac name"
+    url = (
+        "https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/smiles/"
+        f"{smiles}/property/IUPACName/JSON"
+    )
+    try:
+        response = requests.get(url, timeout=60)
+        if response.status_code == 200:
+            data = response.json()
+            return data["PropertyTable"]["Properties"][0]["IUPACName"]
+        return "I've couldn't get iupac name"
+    except requests.RequestException as e:
+        return f"Failed to execute. Error: {repr(e)}"
+    except (KeyError, IndexError, json.JSONDecodeError):
+        return "I've couldn't get iupac name"
 
 
 @mcp.tool()
@@ -491,157 +203,166 @@ def smiles2prop(
 @mcp.tool()
 def visualize_molecule(
     smiles: Annotated[str, "SMILES of a molecule"],
-    save_path: Annotated[str, "Full path to the output HTML file, or directory (then vis.html is used)"],
-):
+) -> str:
     """
-    Visualizes a molecule from its SMILES representation and saves the 3D structure as an HTML file.
+    Visualizes a molecule from its SMILES and returns a temporary presigned URL to an HTML file.
+
+    The file is stored in S3 under 'visualizations/' with a auto-generated name
+    and is intended for one-time viewing (URL expires in 1 hour).
 
     Args:
-        smiles (str): The SMILES string representing the molecule to visualize.
-        save_path (str): Path to the output HTML file or directory (saves vis.html in that case).
+        smiles: SMILES string of the molecule.
 
     Returns:
-        str: On success, returns the absolute path to the saved file. On failure, returns an error message.
+        str: Presigned URL to the HTML visualization, or an error message.
     """
     try:
         mol = Chem.MolFromSmiles(smiles)
-        if not mol:
-            return f"I couldn't visualize this molecule. Perhaps SMILES is invalid: {smiles}"
+        if mol is None:
+            return f"Invalid SMILES: {smiles}"
 
-        mol = Chem.Mol(mol)
         AllChem.AddHs(mol, addCoords=True)
         AllChem.EmbedMolecule(mol)
         AllChem.MMFFOptimizeMolecule(mol)
 
         view = py3Dmol.view(
             data=Chem.MolToMolBlock(mol),
-            style={
-                "stick": {},
-                "sphere": {"scale": 0.3},
-            },
+            style={"stick": {}, "sphere": {"scale": 0.3}},
             width=600,
             height=400,
         )
         view.setBackgroundColor("#b8bfcc")
         view.zoomTo()
-        html_content = view.write_html()
 
-        save_path = Path(save_path.strip())
-        if not str(save_path).endswith(".html"):
-            save_path = save_path / "vis.html"
+        s3_key = s3_service.upload_bytes(
+            "chemical_mcp/molecule_visualizations",
+            f"{uuid.uuid4()}.html",
+            view.write_html().encode("utf-8"),
+        )
 
-        out_dir = save_path.parent
-        if out_dir and not out_dir.exists():
-            out_dir.mkdir(parents=True, exist_ok=True)
+        return s3_service.generate_presigned_url(s3_key, expiration=3600)
 
-        with save_path.open("w", encoding="utf-8") as f:
-            f.write(html_content)
-
-        if not save_path.exists() or save_path.stat().st_size == 0:
-            return f"Failed to save visualization: file was not written or is empty."
-
-        return save_path.as_posix()
-
-    except BaseException as e:
-        return f"Failed to execute. Error: {repr(e)}"
+    except Exception as e:
+        return f"Failed to visualize molecule. Error: {repr(e)}"
 
 
 @mcp.tool()
 def extract_reactions(
-    images_directory: Annotated[str, "Path to directory containing images (.jpg, .png, .jpeg)"],
+    image_urls: Annotated[List[str], "List of public HTTP(S) URLs of images"],
 ) -> Dict:
-    """Detects chemical reactions in images from the given directory using the `reactions_ocr` pipeline.
+    """Detect chemical reactions in images loaded by URLs (ChemService).
+
+    Each URL is processed in turn (in memory, no local cache). Annotated JPEGs are uploaded to S3
+    under ``chemical_mcp/annotated_images``; presigned URLs are listed in metadata.
 
     Args:
-        images_directory (str): Path to directory containing image files.
+        image_urls: One or more direct image links.
 
     Returns:
-        dict: On success: dictionary from `reactions_ocr` (image filenames to reactants,
-            conditions, products) and annotated images saved as <original_name>_annotated.jpg.
-            On failure or no images: dict with an "answer" key and an explanatory message.
+        dict: ``answer`` maps labels (from URL paths; disambiguated with ``__{index}`` on collision)
+        to reaction dicts. ``metadata`` has ``annotated_image_presigned_urls``, ``source_urls``,
+        and optionally ``failed`` (per-URL errors) if some URLs could not be processed.
     """
     try:
-        directory = Path(images_directory.strip())
-        if not directory.exists() or not directory.is_dir():
-            return {'answer': f'Directory does not exist or is not a directory: {images_directory}'}
-        images = [str(f.resolve()) for f in directory.iterdir() if f.is_file() and f.suffix.lower() in ['.jpg', '.png', '.jpeg']]
-        if not images:
-            return {'answer': 'No images provided for reactions recognition.'}
-        return reactions_ocr(images)
+        response = extract_reactions_from_image_urls(image_urls)
+        return response
+    except ChemServiceError as e:
+        logger.error("extract_reactions ChemServiceError: %s", e)
+        return {"answer": f"ChemService reaction extraction failed: {e}"}
+    except requests.RequestException as e:
+        logger.error("extract_reactions download ERROR: %s", e)
+        return {"answer": f"Could not download an image: {e}"}
     except Exception as e:
-        logger.error(f'reactions_recognition ERROR: {e}')
-        return {'answer': f'Could not detect any reactions in the uploaded images. Error: {e}'}
+        logger.error("extract_reactions ERROR: %s", e)
+        return {"answer": f"Could not extract reactions from images. Error: {e}"}
 
 
 @mcp.tool()
 def extract_molecules(
-    images_directory: Annotated[str, "Path to directory containing images (.jpg, .png, .jpeg)"],
+    image_urls: Annotated[List[str], "List of public HTTP(S) URLs of images"],
 ) -> Dict:
-    """Detects molecular structures in images from the given directory and converts them to SMILES using the `molecules_ocr` pipeline.
+    """Detect molecular structures in images loaded by URLs (ChemService).
+
+    Each URL is processed in turn. Annotated JPEGs go to S3 under ``chemical_mcp/annotated_images``;
+    presigned URLs are returned in metadata.
 
     Args:
-        images_directory (str): Path to directory containing image files.
+        image_urls: One or more direct image links.
 
     Returns:
-        dict: On success: dictionary from `molecules_ocr` (image filenames to SMILES and errors),
-            with annotated images saved as <original_name>_annotated.jpg. On failure or no images:
-            dict with an "answer" key and an explanatory message.
+        dict: ``answer`` maps labels to ``smiles`` / ``errors``. ``metadata`` includes
+        ``annotated_image_presigned_urls``, ``source_urls``, and optionally ``failed``.
     """
     try:
-        directory = Path(images_directory.strip())
-        if not directory.exists() or not directory.is_dir():
-            return {'answer': f'Directory does not exist or is not a directory: {images_directory}'}
-        images = [str(f.resolve()) for f in directory.iterdir() if f.is_file() and f.suffix.lower() in ['.jpg', '.png', '.jpeg']]
-        if not images:
-            return {'answer': 'No images provided for molecules recognition.'}
-        return molecules_ocr(images)
+        response = extract_molecules_from_image_urls(image_urls)
+        return response
+    except ChemServiceError as e:
+        logger.error("extract_molecules ChemServiceError: %s", e)
+        return {"answer": f"ChemService molecule extraction failed: {e}"}
+    except requests.RequestException as e:
+        logger.error("extract_molecules download ERROR: %s", e)
+        return {"answer": f"Could not download an image: {e}"}
     except Exception as e:
-        logger.error(f'molecules_recognition ERROR: {e}')
-        return {'answer': 'Could not detect any molecules in the uploaded images.'}
+        logger.error("extract_molecules ERROR: %s", e)
+        return {"answer": f"Could not extract molecules from images. Error: {e}"}
+
 
 
 @mcp.tool()
 def calculate_docking(
     smiles: str,
     pdb_id: str,
-    output_path: Annotated[str, "Full path for the output HTML file with docking result"],
 ) -> dict:
     """
-    Calculate docking score for a molecule and save the visualization to the given path.
+    Calculate docking score for a molecule; upload the HTML visualization to S3 and return a presigned URL.
 
     Args:
-        smiles (str): SMILES string of the molecule.
-        pdb_id (str): ID of the PDB file containing the receptor structure.
-        output_path (str): Full path for the output HTML file.
+        smiles: SMILES string of the molecule.
+        pdb_id: PDB identifier for the receptor structure.
 
     Returns:
-        dict: answer (affinity, errors) and metadata (html_file path). On failure, metadata may be None.
+        dict: ``answer`` with affinity and errors; ``metadata`` may include ``docking_html_presigned_url``
+        (temporary link, same TTL as molecule visualizations) when a visualization is returned.
     """
-    response = calculate_docking_score(smiles, pdb_id)
-    data = response.get("data", None)
-    errors = response.get("error")
+    try:
+        response = chem_service.calculate_docking_score(smiles, pdb_id)
+    except ChemServiceError as e:
+        return {
+            "answer": {"affinity": None, "errors": str(e)},
+            "metadata": {},
+        }
+
+    if isinstance(response, dict) and "data" in response:
+        data = response.get("data")
+        errors = response.get("error")
+    else:
+        data = response if isinstance(response, dict) else None
+        errors = response.get("error") if isinstance(response, dict) else None
+
     affinity = None
-    output_file = None
+    presigned_url: Optional[str] = None
 
     if data:
         affinity = data.get("affinity")
         visualization = data.get("visualization")
         if visualization:
-            html_base64 = data.get("visualization")
-            html_content = base64.b64decode(html_base64)
-            output_path = output_path.strip()
-            if not output_path.lower().endswith(".html"):
-                output_path = os.path.join(output_path, f"docking_result_{pdb_id}.html")
-            out_dir = os.path.dirname(output_path)
-            if out_dir:
-                os.makedirs(out_dir, exist_ok=True)
-            with open(output_path, "wb") as f:
-                f.write(html_content)
-            output_file = os.path.abspath(output_path)
+            if isinstance(visualization, (bytes, bytearray)):
+                html_content = bytes(visualization)
+            else:
+                html_content = base64.b64decode(visualization)
+            filename = f"docking_{pdb_id}_{uuid.uuid4()}.html"
+            s3_key = s3_service.upload_bytes(
+                "chemical_mcp/docking_results",
+                filename,
+                html_content,
+            )
+            presigned_url = s3_service.generate_presigned_url(s3_key, expiration=3600)
 
     return {
         "answer": {"affinity": affinity, "errors": errors},
-        "metadata": {"html_file": output_file} if output_file else {},
+        "metadata": (
+            {"docking_html_presigned_url": presigned_url} if presigned_url else {}
+        ),
     }
     
 @mcp.tool()
@@ -735,7 +456,13 @@ def forward_predict(
 
 def main() -> None:
     """Entry point for the MCP server."""
-    mcp.run(transport="http", host="0.0.0.0", port=7331, path="/mcp")
+    settings = get_settings()
+    mcp.run(
+        transport="http",
+        host=settings.chem_mcp_host,
+        port=settings.chem_mcp_port,
+        path=settings.chem_mcp_path,
+    )
 
 
 if __name__ == "__main__":

@@ -1,15 +1,10 @@
 from typing import List, Dict, Any
-import requests
-import os
 import logging
 
+import requests
 
-RETROSYNTHESIS_SERVICES_HOST = os.environ.get("RETROSYNTHESIS_SERVICES_HOST")
-RETROSYNTHESIS_SERVICES_PORT = os.environ.get("RETROSYNTHESIS_SERVICES_PORT")
-RETROSYNTHESIS_SERVICES_URL = f"http://{RETROSYNTHESIS_SERVICES_HOST}:{RETROSYNTHESIS_SERVICES_PORT}"
-REQUEST_TIMEOUT = 60
+from .config import get_settings
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 def retrosynthesis_result(smiles: str, mode: str = "fast", max_routes: int = 5) -> Dict[str, Any]:
@@ -48,14 +43,16 @@ def retrosynthesis_result(smiles: str, mode: str = "fast", max_routes: int = 5) 
                       stoichiometry (int): reagent count (default 1).
                     - products (List[Dict[str, Any]]): products, same schema
     """
-    api_url = f"{RETROSYNTHESIS_SERVICES_URL}/api/v1/retrosynthesis/result"
+    settings = get_settings()
+    base = settings.retrosynthesis_base_url
+    api_url = f"{base}/api/v1/retrosynthesis/result"
     logger.info(f"Calling Retrosynthesis API: {api_url}")
     try:
         response = requests.post(
             api_url,
             json={"smiles": smiles},
             params={"mode": mode},
-            timeout=REQUEST_TIMEOUT,
+            timeout=settings.retrosynthesis_request_timeout,
         )
         if response.status_code != 200:
             error_msg = f"Retrosynthesis API returned status {response.status_code}: {response.text[:500]}"
@@ -70,7 +67,7 @@ def retrosynthesis_result(smiles: str, mode: str = "fast", max_routes: int = 5) 
             json_response["routes"] = json_response["routes"][:max(0, int(max_routes))]
         return json_response
     except requests.exceptions.RequestException as e:
-        error_msg = f"Failed to connect to Retrosynthesis API at {RETROSYNTHESIS_SERVICES_URL}: {str(e)}"
+        error_msg = f"Failed to connect to Retrosynthesis API at {base}: {str(e)}"
         logger.error(error_msg)
         raise ConnectionError(error_msg)
 
@@ -95,13 +92,15 @@ def classify_reaction_smiles(smiles: List[str], num_results: int = 10) -> Dict[s
                 - reaction_superclassname (str): superclass name.
                 - prediction_certainty (float): confidence score.
     """
-    api_url = f"{RETROSYNTHESIS_SERVICES_URL}/api/v1/reaction-classification/classify"
+    settings = get_settings()
+    base = settings.retrosynthesis_base_url
+    api_url = f"{base}/api/v1/reaction-classification/classify"
     logger.info(f"Calling Reaction Classification API: {api_url}")
     try:
         response = requests.post(
             api_url,
             json={"smiles": smiles, "num_results": num_results},
-            timeout=REQUEST_TIMEOUT,
+            timeout=settings.retrosynthesis_request_timeout,
         )
         if response.status_code != 200:
             error_msg = (
@@ -119,7 +118,7 @@ def classify_reaction_smiles(smiles: List[str], num_results: int = 10) -> Dict[s
     except requests.exceptions.RequestException as e:
         error_msg = (
             f"Failed to connect to Reaction Classification API at "
-            f"{RETROSYNTHESIS_SERVICES_URL}: {str(e)}"
+            f"{base}: {str(e)}"
         )
         logger.error(error_msg)
         raise ConnectionError(error_msg)
@@ -149,7 +148,9 @@ def forward_predict_products(
                 - smiles (str): product SMILES.
                 - score (float): model probability/score.
     """
-    api_url = f"{RETROSYNTHESIS_SERVICES_URL}/api/v1/forward/predict"
+    settings = get_settings()
+    base = settings.retrosynthesis_base_url
+    api_url = f"{base}/api/v1/forward/predict"
     logger.info(f"Calling Forward Prediction API: {api_url}")
     try:
         response = requests.post(
@@ -161,7 +162,7 @@ def forward_predict_products(
                 "reagents": reagents,
                 "solvent": solvent,
             },
-            timeout=REQUEST_TIMEOUT,
+            timeout=settings.retrosynthesis_request_timeout,
         )
         if response.status_code != 200:
             error_msg = (
@@ -180,7 +181,7 @@ def forward_predict_products(
     except requests.exceptions.RequestException as e:
         error_msg = (
             f"Failed to connect to Forward Prediction API at "
-            f"{RETROSYNTHESIS_SERVICES_URL}: {str(e)}"
+            f"{base}: {str(e)}"
         )
         logger.error(error_msg)
         raise ConnectionError(error_msg)
