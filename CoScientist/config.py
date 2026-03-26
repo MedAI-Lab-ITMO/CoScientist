@@ -164,8 +164,3 @@ config = Config(
     )
 )
 
-
-if __name__=='__main__':
-    print(config.s3.use_s3, type(config.s3.use_s3))
-    print(config.opik.api_key)
-    print(config.llm.main_url)
