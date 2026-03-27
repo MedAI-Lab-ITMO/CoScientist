@@ -19,7 +19,7 @@ What it does:
 - Extracts requested molecular properties with an LLM
 - Merges molecules and properties into a tab-separated dataset
 - Uploads final dataset to S3
-- Returns metadata with dataset S3 URI and local path to annotated images
+- Returns metadata with dataset S3 URI and S3 paths to annotated images
 
 Main arguments:
 

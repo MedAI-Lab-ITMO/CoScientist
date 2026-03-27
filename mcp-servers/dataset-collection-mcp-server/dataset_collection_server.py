@@ -1,4 +1,4 @@
-import os, json, base64
+import os, json, base64, uuid
 import logging
 import pandas as pd
 import fitz
@@ -8,17 +8,16 @@ from PIL import Image
 from dotenv import load_dotenv, find_dotenv
 from langchain_core.messages import SystemMessage, HumanMessage
 from protollm.connectors import create_llm_connector
-import uuid
+from pprint import pprint
 from fastmcp import FastMCP
-
-from CoScientist.paper_parser.s3_connection import S3BucketService
-from utils import update_activity
 
 logger = logging.getLogger(__name__)
 
-from chemical_functions import extract_molecules_from_figure
+from CoScientist.chemical_utils.chemical_functions import extract_molecules_from_figure
+from CoScientist.chemical_utils.ocr_pipeline import render_molecule_detections
+from CoScientist.paper_parser.s3_connection import S3BucketService
+
 from prompt import extract_mol_properties_prompt
-from ocr_pipeline import render_molecule_detections
 
 load_dotenv(find_dotenv(usecwd=True), override=True)
 
@@ -84,8 +83,6 @@ def extract_props(model_url: str, question: str, pdfs: list) -> dict:
     molecules and their properties from scientific papers.
     """
 
-    if pdfs:
-        update_activity(os.path.dirname(pdfs[0]))
     llm = create_llm_connector(model_url)
 
     content = []
@@ -155,15 +152,20 @@ def extract_mols_prop_dataset(
                     molecular structures..
     """
     run_id = str(uuid.uuid4())
-    res_img_path = Path(f"{IMG_STORAGE_PATH}/paper_images/{session_id}/{run_id}")
-    res_img_path.mkdir(parents=True, exist_ok=True)
-    final_dataset_path = res_img_path / "final_dataset.csv"
+    s3_client = s3_service.create_s3_client()
+    images_prefix = f"{user_id}/{session_id}/dataset_collection/annotated_images/{run_id}"
+    annotated_images_paths = []
+
     all_datasets = []
     for pdf in pdfs:
         try:
             images = convert_pdf_pages_to_images(pdf)
             results = extract_smiles_from_images(images)
-            render_molecule_detections(images, results, res_img_path)
+            rendered_files = render_molecule_detections(images, results)
+            for file_name, file_bytes in rendered_files:
+                image_key = f"{images_prefix}/{Path(pdf).stem}/{file_name}"
+                s3_client.upload_fileobj(BytesIO(file_bytes), s3_service.bucket_name, image_key)
+                annotated_images_paths.append(f"s3://{s3_service.bucket_name}/{image_key}")
             mols_df = mols_to_csv(results)
             mols_df['id'] = mols_df['id'].astype(str)
             props_df = extract_props(model_url, question, [pdf])
@@ -185,14 +187,13 @@ def extract_mols_prop_dataset(
     final_dataset.to_csv(csv_buffer, sep="\t", index=False)
 
     s3_key = f"{user_id}/{session_id}/dataset_collection/final_dataset_{run_id}.csv"
-    s3_client = s3_service.create_s3_client()
     s3_client.upload_fileobj(BytesIO(csv_buffer.getvalue().encode("utf-8")), s3_service.bucket_name, s3_key)
 
     answer = f"Dataset extracted with {len(final_dataset)} molecules and properties"
     return {
         "answer": answer,
         "metadata": {"dataset_s3_path": f"s3://{s3_service.bucket_name}/{s3_key}",
-                     "annotated_images_paths": res_img_path.as_posix()}
+                     "annotated_images_paths": annotated_images_paths}
     }
 
 if __name__ == "__main__":

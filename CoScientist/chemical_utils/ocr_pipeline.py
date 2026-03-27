@@ -6,41 +6,47 @@ from pathlib import Path
 from PIL import Image, ImageDraw
 from pprint import pprint
 
-from chemical_functions import extract_molecules_from_figure, extract_reactions_from_figure
+from CoScientist.chemical_utils.chemical_functions import extract_molecules_from_figure, extract_reactions_from_figure
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+BOX_COLORS = {
+    "molecules": "red",
+    "products": "green",
+    "reagents": "blue",
+    "conditions": "orange",
+}
+DEFAULT_BOX_COLOR = "gray"
 
-def draw_bboxes_on_image(
-    image: bytes | fitz.Pixmap,
-    bboxes: list[list] | dict[str, list[list]],
-) -> bytes:
-    """
-    Draw bounding boxes of deceted molecules and reactions on the provided image.
-    
+
+def draw_bboxes_on_image(image: bytes, bboxes: dict) -> bytes:
+    """Draw bounding boxes of detected molecules and reactions on the provided image.
+
     Args:
-        image (bytes | fitz.Pixmap): Original image as bytes or Pixmap
-        bboxes (List[List] | Dict[str, List[List]]): Bounding boxes [x1, y1, x2, y2]
-    
+        image (bytes): Original user image.
+        bboxes (dict): Dict mapping category keys (molecules, products, reagents, conditions)
+            to lists of normalized bboxes [x1, y1, x2, y2] in 0..1 range.
+
     Returns:
-        bytes: JPEG image with rectangles drawn.
+        bytes: JPEG image with rectangles drawn. Colors per category from BOX_COLORS.
     """
     if isinstance(image, fitz.Pixmap):
-        image_bytes = image.tobytes("png")
-    else:
-        image_bytes = image
+        image = image.tobytes("ppm")
+    img = Image.open(io.BytesIO(image))
 
-    img = Image.open(io.BytesIO(image_bytes))
     draw = ImageDraw.Draw(img)
-
     w, h = img.size
-    for bbox in bboxes:
-        x1 = bbox[0] * w
-        y1 = bbox[1] * h
-        x2 = bbox[2] * w
-        y2 = bbox[3] * h
-        draw.rectangle([x1, y1, x2, y2], outline="red", width=3)
+
+    for key, boxes in bboxes.items():
+        color = BOX_COLORS.get(key, DEFAULT_BOX_COLOR)
+        for bbox in boxes if isinstance(boxes, list) else [boxes]:
+            x1 = bbox[0] * w
+            y1 = bbox[1] * h
+            x2 = bbox[2] * w
+            y2 = bbox[3] * h
+            draw.rectangle([x1, y1, x2, y2], outline=color, width=3)
+
     output = io.BytesIO()
     img.save(output, format="JPEG", quality=95)
     return output.getvalue()
@@ -186,7 +192,7 @@ def reactions_ocr(images: list[str]) -> dict:
     }
 
 
-def render_molecule_detections(images: list, bboxes_list: list, res_path: str) -> None:
+def render_molecule_detections(images: list, bboxes_list: list, res_path: str | None = None) -> list[tuple[str, bytes]]:
     """
     Renders bounding boxes around molecular structures that were extracted by
     OpenChemIE tools and saves annotated versions of each image.
@@ -199,22 +205,26 @@ def render_molecule_detections(images: list, bboxes_list: list, res_path: str) -
     bboxes_list: list
         Coordinates of boxes.
 
-    res_path: str
-        Path to resulting images.
+    res_path: str | None
+        Optional path to resulting images.
 
     Returns
     -------
-        None
+        list[tuple[str, bytes]]
+        List of tuples with (file_name, annotated_image_bytes).
 
     Side Effects
     ------------
-    - Saves an annotated image for each input image as <original_name>_annotated.jpg,
-      containing bounding boxes around detected molecules.
+    - If res_path is provided, saves an annotated image for each input image as
+      <original_name>_annotated.jpg containing bounding boxes around detected molecules.
     """
+
+    rendered_files = []
 
     for i, img_bytes in enumerate(images):
 
-        entries = bboxes_list[i][0].get('bboxes')
+        page_results = bboxes_list[i] if i < len(bboxes_list) else []
+        entries = page_results[0].get("bboxes") if page_results else []
 
         if entries:
             bboxes = []
@@ -222,13 +232,21 @@ def render_molecule_detections(images: list, bboxes_list: list, res_path: str) -
             for entry in entries:
                 smi = entry.get("smiles")
                 if smi:
-                    bboxes.append(entry.get("bbox"))
+                    bbox = entry.get("bbox")
+                    if bbox:
+                        bboxes.append(bbox)
 
             if bboxes:
-                annotated_img = draw_bboxes_on_image(img_bytes, bboxes)
-                os.makedirs(Path(res_path), exist_ok=True)
-                out_path = Path(res_path, f"{i}_annotated.jpg")
-                out_path.write_bytes(annotated_img)
+                annotated_img = draw_bboxes_on_image(img_bytes, {"molecules": bboxes})
+                file_name = f"page_{i}_annotated.jpg"
+                rendered_files.append((file_name, annotated_img))
+
+                if res_path:
+                    os.makedirs(Path(res_path), exist_ok=True)
+                    out_path = Path(res_path, file_name)
+                    out_path.write_bytes(annotated_img)
+
+    return rendered_files
 
 
 if __name__ == "__main__":
