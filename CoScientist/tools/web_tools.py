@@ -1,8 +1,11 @@
 """Tools for websearch"""
+from typing import List, Optional, Dict, Any
+
 from CoScientist.tools.utils import tool, toolset
 from CoScientist.config import get_settings
 
-
+from google.adk.tools import FunctionTool, BaseTool
+from google.adk.tools.base_toolset import BaseToolset
 from google.adk.tools.mcp_tool import McpToolset
 from google.adk.tools.mcp_tool.mcp_session_manager import StreamableHTTPConnectionParams
 
@@ -22,7 +25,7 @@ class WebSearchToolset(BaseToolset):
         pass
 
     async def get_tools(
-        self, readonly_context: Optional[ReadonlyContext] = None
+        self
     ) -> List[BaseTool]:
 
         tools = []

@@ -2,12 +2,13 @@
 
 import asyncio
 import inspect
+from typing import List, Optional, Dict, Any
 
-from google.adk.tools import FunctionTool
+from google.adk.tools import FunctionTool, BaseTool
 from google.adk.tools.base_toolset import BaseToolset
 
 from CoScientist.tools.utils import tool
-from CoScientist.fedotmas import MAS, HttpMCPServer
+from fedotmas import MAS, HttpMCPServer
 
 
 class FedotMASToolset(BaseToolset):
@@ -16,7 +17,7 @@ class FedotMASToolset(BaseToolset):
         pass
 
     async def get_tools(
-        self, readonly_context: Optional[ReadonlyContext] = None
+        self
     ) -> List[BaseTool]:
 
         tools = []

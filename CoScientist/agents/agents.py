@@ -5,6 +5,8 @@ from google.adk.models.lite_llm import LiteLlm
 from google.adk.tools.agent_tool import AgentTool
 from google.genai import types
 
+import litellm
+
 from CoScientist.config import get_settings
 from CoScientist.agents.prompts import hypotheses_instruction, research_instruction, fedot_instruction, orchestrator_instruction
 from CoScientist.tools import fedot_toolset_instance, websearch_toolset_instance
@@ -19,6 +21,7 @@ import json
 settings = get_settings()
 
 MODEL = settings.llm.main_model
+litellm.api_key = settings.llm.openai_api_key
 
 hypotheses_agent = LlmAgent(
     name="HypothesesAgent",
