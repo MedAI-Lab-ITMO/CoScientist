@@ -7,14 +7,18 @@ from CoScientist.main import (
     create_manager
 )
 
-from CoScientist.tools import FedotMASToolset, WebSearchToolset
+from CoScientist.tools import FedotMASToolset
 
 from CoScientist.agents import (
     orchestrator_agent,
     hypotheses_agent, 
     research_agent, 
-    fedot_agent
+    fedot_agent,
+    tool_retriever_agent,
+    task_execution_agent
 )
+
+from CoScientist.storage import RetrievalFinalResult, RetrievalToolResult
 
 __version__ = "1.0.0"
 
@@ -22,14 +26,16 @@ __all__ = [
     # Main classes
     "CoScientistManager",
     # Models
+    'RetrievalFinalResult',
+    'RetrievalToolResult',
     # Tools
     'FedotMASToolset',
-    'WebSearchToolset',
     #Agents
     'orchestrator_agent',
     'hypotheses_agent',
     'research_agent',
     'fedot_agent',
+    'task_execution_agent',
     # Functions
     "create_manager"
 ]
