@@ -98,7 +98,7 @@ class CoScientistManager:
                     final_response = event.content.parts[0].text
                 elif event.actions and event.actions.escalate:
                     final_response = f"Escalation: {event.error_message or 'Unknown error'}"
-                break
+                
 
         return final_response
 
