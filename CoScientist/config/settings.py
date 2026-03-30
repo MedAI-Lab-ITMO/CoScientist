@@ -75,11 +75,15 @@ class HostsPortsSettings(BaseModel):
     embedding_host: Optional[str] = None
     reranker_host: Optional[str] = None
     opencChemie_host: Optional[str] = None
+    chem_services_host: Optional[str] = None
+    retrosynthesis_services_host: Optional[str] = None
 
     chroma_port: Optional[str] = None
     embedding_port: Optional[str] = None
     reranker_port: Optional[str] = None
     opencChemie_port: Optional[str] = None
+    chem_services_port: Optional[str] = None
+    retrosynthesis_services_port: Optional[str] = None
   
 
 # =========================
@@ -126,7 +130,7 @@ class Settings(BaseSettings):
     opik: OpikSettings = OpikSettings()
 
     model_config = SettingsConfigDict(
-        env_file=".env",          # matches your previous CONFIG_PATH
+        env_file=".env",          
         env_nested_delimiter="__",     # IMPORTANT for nesting
         extra="ignore"
     )
