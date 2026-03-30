@@ -118,6 +118,7 @@ class Settings(BaseSettings):
     """Main application settings."""
 
     llm: LLMSettings = LLMSettings()
+    services: ServicesSettings = ServicesSettings()
     storage: StorageSettings = StorageSettings()
     hosts_ports: HostsPortsSettings = HostsPortsSettings()
     collections: CollectionsSettings = CollectionsSettings()
