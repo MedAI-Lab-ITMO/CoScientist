@@ -7,6 +7,7 @@ from google.adk.tools import FunctionTool
 from google.adk.tools.base_toolset import BaseToolset
 
 from CoScientist.tools.utils import tool
+from CoScientist.fedotmas import MAS, HttpMCPServer
 
 
 class FedotMASToolset(BaseToolset):
