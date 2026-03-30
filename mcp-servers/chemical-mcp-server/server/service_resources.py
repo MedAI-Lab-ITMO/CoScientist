@@ -1,4 +1,5 @@
 from .clients.chemical_client import ChemServiceClient
+from .clients.retrosynthesis_client import RetrosynthesisServiceClient
 from .config import get_settings
 from .utils.s3_utils import S3BucketService
 
@@ -15,4 +16,10 @@ chem_service = ChemServiceClient(
     host=settings.chem_services_host,
     port=str(settings.chem_services_port),
     timeout=settings.chem_services_timeout,
+)
+
+retrosynthesis_service = RetrosynthesisServiceClient(
+    host=settings.retrosynthesis_services_host,
+    port=str(settings.retrosynthesis_services_port),
+    timeout=settings.retrosynthesis_request_timeout,
 )

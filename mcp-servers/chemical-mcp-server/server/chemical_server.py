@@ -28,12 +28,8 @@ from .ocr_pipeline import (
     extract_molecules_from_image_urls,
     extract_reactions_from_image_urls,
 )
-from .retrosynthesis import (
-    classify_reaction_smiles,
-    forward_predict_products,
-    retrosynthesis_result,
-)
-from .service_resources import chem_service, s3_service
+from .service_resources import chem_service, retrosynthesis_service, s3_service
+from .utils.drawing_utils import draw_molecules_grid, draw_reactions_strip, draw_route_image
 
 
 logging.basicConfig(level=logging.INFO)
@@ -382,18 +378,74 @@ def retrosynthesis_tree_search(
         mode (str): Search depth/quality preset ("fast", "balanced", "deep").
 
     Returns:
-        dict: Retrosynthesis result with target and routes.
+        dict: Retrosynthesis result payload with:
+            - target (str | None): input target SMILES returned by ASKCOS.
+            - routes (List[Dict]): list of retrosynthesis routes:
+                - id (str): unique route identifier.
+                - depth (int | None): longest path length in the route.
+                - precursor_cost (float | None): summed precursor cost metric.
+                - score (float | None): overall route score.
+                - min_step_plausibility (float | None): lowest step plausibility.
+                - avg_step_plausibility (float | None): average step plausibility.
+                - steps (List[Dict]): ordered reaction steps:
+                    - reaction_smiles (str): step reaction SMILES.
+                    - mapped_smiles (str | None): atom-mapped reaction SMILES.
+                    - plausibility (float | None): step plausibility score.
+                    - precursor_rank (int | None): ranking of precursor set.
+                    - precursor_score (float | None): model score for precursors.
+                    - model_score (float | None): model score for the step.
+                    - template (Dict | None): template metadata:
+                        reaction_smarts (str): reaction SMARTS pattern.
+                        template_rank (int | None): rank among templates.
+                        num_examples (int | None): template training examples count.
+                    - reactants (List[Dict]): precursor molecules:
+                        smiles (str): molecule SMILES.
+                        terminal (bool | None): True if purchasable/terminal.
+                        buy_link (str | None): vendor link if available.
+                        stoichiometry (int): reagent count (default 1).
+                    - products (List[Dict]): products, same schema as reactants.
+            - metadata (Dict): visualization info:
+                - route_images (List[Dict]): one entry per route with:
+                    - route_id (str): route identifier.
+                    - s3_key (str): S3 object key.
+                    - presigned_url (str): temporary URL to view the image (1 h TTL).
         On failure returns a dict with an "answer" message.
     """
     try:
-        return retrosynthesis_result(smiles=smiles, mode=mode)
+        result = retrosynthesis_service.retrosynthesis_result(smiles=smiles, mode=mode)
     except Exception as e:
         logger.error(f"retrosynthesis_tree_search ERROR: {e}")
         return {"answer": "Could not run retrosynthesis tree search."}
 
+    metadata: Dict = {}
+    try:
+        route_images = []
+        for i, route in enumerate(result.get("routes", [])):
+            route_id = route.get("id", f"route_{i}")
+            img_bytes = draw_route_image(route)
+            s3_key = s3_service.upload_bytes(
+                "chemical_mcp/retrosynthesis",
+                f"{route_id}_{uuid.uuid4()}.png",
+                img_bytes,
+            )
+            route_images.append({
+                "route_id": route_id,
+                "s3_key": s3_key,
+                "presigned_url": s3_service.generate_presigned_url(s3_key, expiration=3600),
+            })
+        metadata["route_images"] = route_images
+    except Exception as e:
+        logger.warning("retrosynthesis_tree_search: could not render images: %s", e)
+
+    result["metadata"] = metadata
+    return result
+
 @mcp.tool()
 def classify_reaction(
-    smiles: Annotated[List[str], "List of reaction SMILES, e.g. ['A.B>>C']"],
+    smiles: Annotated[
+        List[str],
+        "Each entry is one full reaction SMILES: 'A.B>>C' (not separate molecules per list item)",
+    ],
     num_results: Annotated[int, "Max classes per reaction (1..50)"] = 10,
 ) -> Dict:
     """
@@ -404,15 +456,27 @@ def classify_reaction(
     classification hits with ranks and confidence.
 
     Args:
-        smiles (List[str]): List of reaction SMILES to classify.
-        num_results (int): Max classes per reaction (1..50).
+        smiles (List[str]): One or more reaction strings; each is reactants>>products,
+            with multiple reactants joined by "." (e.g. ["CCO.CC(=O)O>>CCOC(=O)C"]).
+        num_results (int): Max number of classes per reaction (1..50).
 
     Returns:
-        dict: status_code/message/result list with classification hits.
+        dict: ASKCOS classification payload with:
+            - status_code (int): upstream status code.
+            - message (str): upstream message.
+            - result (List[Dict]): list of hits with:
+                - rank (int): hit rank.
+                - reaction_num (str): reaction identifier.
+                - reaction_name (str): reaction name.
+                - reaction_classnum (str): class number.
+                - reaction_classname (str): class name.
+                - reaction_superclassnum (str): superclass number.
+                - reaction_superclassname (str): superclass name.
+                - prediction_certainty (float): confidence score.
         On failure returns a dict with an "answer" message.
     """
     try:
-        return classify_reaction_smiles(smiles=smiles, num_results=num_results)
+        return retrosynthesis_service.classify_reaction_smiles(smiles=smiles, num_results=num_results)
     except Exception as e:
         logger.error(f"classify_reaction ERROR: {e}")
         return {"answer": "Could not classify reaction SMILES."}
@@ -433,17 +497,30 @@ def forward_predict(
 
     Args:
         smiles (List[str]): Batch of reaction inputs (reactants).
-        backend (str): Model backend ("wldn5", "graph2smiles", "augmented_transformer").
-        model_name (str): Model name for backend (default "pistachio").
-        reagents (str): Reagents string.
-        solvent (str): Solvent string.
+        backend (str): One of "wldn5", "graph2smiles", "augmented_transformer".
+        retrosynthesis_model_name (str): Model name for the backend (default "pistachio").
+        reagents (str): Reagents string as in ASKCOS controller.
+        solvent (str): Solvent string as in ASKCOS controller.
 
     Returns:
-        dict: inputs/backend/model_name/predictions with product SMILES and scores.
+        dict: ASKCOS forward payload with:
+            - inputs (List[str]): normalized inputs (reactants+reagents+solvent).
+            - backend (str): backend identifier used.
+            - model_name (str): model name used.
+            - predictions (List[Dict]): predicted products:
+                - smiles (str): product SMILES.
+                - score (float): model probability/score.
+            - metadata (Dict): visualization info:
+                - predictions_image (Dict):
+                    - s3_key (str): S3 object key.
+                    - presigned_url (str): temporary URL to view the grid image (1 h TTL).
+                - top_reactions_image (Dict): reaction drawings for top 3 products:
+                    - s3_key (str): S3 object key.
+                    - presigned_url (str): temporary URL to view the reactions image (1 h TTL).
         On failure returns a dict with an "answer" message.
     """
     try:
-        return forward_predict_products(
+        result = retrosynthesis_service.forward_predict_products(
             smiles=smiles,
             backend=backend,
             model_name=retrosynthesis_model_name,
@@ -453,6 +530,58 @@ def forward_predict(
     except Exception as e:
         logger.error(f"forward_predict ERROR: {e}")
         return {"answer": "Could not run forward prediction."}
+
+    metadata: Dict = {}
+    try:
+        predictions = result.get("predictions", [])
+        smiles_list = [p["smiles"] for p in predictions if p.get("smiles")]
+        labels = [
+            f"score: {p['score']:.3f}" if isinstance(p.get("score"), float) else ""
+            for p in predictions
+            if p.get("smiles")
+        ]
+        img_bytes = draw_molecules_grid(smiles_list, labels=labels)
+        s3_key = s3_service.upload_bytes(
+            "chemical_mcp/forward_prediction",
+            f"predictions_{uuid.uuid4()}.png",
+            img_bytes,
+        )
+        metadata["predictions_image"] = {
+            "s3_key": s3_key,
+            "presigned_url": s3_service.generate_presigned_url(s3_key, expiration=3600),
+        }
+    except Exception as e:
+        logger.warning("forward_predict: could not render images: %s", e)
+
+    try:
+        predictions = result.get("predictions", [])
+        inputs = result.get("inputs", smiles)
+        reactants_smi = ".".join(inputs) if isinstance(inputs, list) else str(inputs)
+        top = [p for p in predictions if p.get("smiles")][:3]
+        reactions = []
+        for i, p in enumerate(top):
+            rxn_smi = f"{reactants_smi}>>{p['smiles']}"
+            score = p.get("score")
+            label = f"Top {i + 1}"
+            if isinstance(score, float):
+                label += f"   score: {score:.3f}"
+            reactions.append((rxn_smi, label))
+        if reactions:
+            rxn_img_bytes = draw_reactions_strip(reactions)
+            rxn_s3_key = s3_service.upload_bytes(
+                "chemical_mcp/forward_prediction",
+                f"top_reactions_{uuid.uuid4()}.png",
+                rxn_img_bytes,
+            )
+            metadata["top_reactions_image"] = {
+                "s3_key": rxn_s3_key,
+                "presigned_url": s3_service.generate_presigned_url(rxn_s3_key, expiration=3600),
+            }
+    except Exception as e:
+        logger.warning("forward_predict: could not render reaction images: %s", e)
+
+    result["metadata"] = metadata
+    return result
 
 def main() -> None:
     """Entry point for the MCP server."""
