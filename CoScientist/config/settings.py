@@ -56,6 +56,8 @@ class StorageSettings(BaseModel):
     path_to_temp_files: Optional[str] = None
     my_papers: Optional[str] = None
 
+    logging_path: Optional[str] = 'logs/'
+
 
 # =========================
 # HOSTS & PORTS
