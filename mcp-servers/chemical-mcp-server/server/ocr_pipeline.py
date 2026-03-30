@@ -1,238 +1,263 @@
-import fitz
-import io
-import os
-import logging
-from pathlib import Path
-from PIL import Image, ImageDraw
+import uuid
+from typing import Any, Dict, Optional
+from urllib.parse import unquote, urlparse
 
-from .chemical_functions import extract_molecules_from_figure, extract_reactions_from_figure
+from .service_resources import chem_service, s3_service
+from .utils.image_utils import download_url_to_bytes, draw_bboxes_on_image
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-BOX_COLORS = {
-    "molecules": "red",
-    "products": "green",
-    "reagents": "blue",
-    "conditions": "orange",
-}
-DEFAULT_BOX_COLOR = "gray"
+ANNOTATED_IMAGES_S3_PREFIX = "chemical_mcp/annotated_images"
+ANNOTATED_IMAGE_PRESIGN_SECONDS = 3600
 
 
-def draw_bboxes_on_image(image: bytes, bboxes: dict) -> bytes:
-    """Draw bounding boxes of detected molecules and reactions on the provided image.
+def _label_from_image_url(url: str) -> str:
+    """
+    Builds a short label for an image from the last URL path.
 
     Args:
-        image (bytes): Original user image.
-        bboxes (dict): Dict mapping category keys (molecules, products, reagents, conditions)
-            to lists of normalized bboxes [x1, y1, x2, y2] in 0..1 range.
+        url (str): URL for image.
 
     Returns:
-        bytes: JPEG image with rectangles drawn. Colors per category from BOX_COLORS.
+        str: Unquoted filename from the path, or "image" if the path has no name.
     """
-    if isinstance(image, fitz.Pixmap):
-        image = image.tobytes("ppm")
-    img = Image.open(io.BytesIO(image))
-
-    draw = ImageDraw.Draw(img)
-    w, h = img.size
-
-    for key, boxes in bboxes.items():
-        color = BOX_COLORS.get(key, DEFAULT_BOX_COLOR)
-        for bbox in boxes if isinstance(boxes, list) else [boxes]:
-            x1 = bbox[0] * w
-            y1 = bbox[1] * h
-            x2 = bbox[2] * w
-            y2 = bbox[3] * h
-            draw.rectangle([x1, y1, x2, y2], outline=color, width=3)
-
-    output = io.BytesIO()
-    img.save(output, format="JPEG", quality=95)
-    return output.getvalue()
+    path = urlparse(url.strip()).path
+    name = path.rstrip("/").rsplit("/", 1)[-1] if path else ""
+    return unquote(name) if name else "image"
 
 
-def molecules_ocr(images: list[str]) -> dict:
+def _upload_annotated_jpeg_and_presign(jpeg_bytes: bytes) -> str:
     """
-    Extracts molecules from a list of image paths using OpenChemIE tools and
-    saves annotated versions of each image with bounding boxes around detected
-    molecular structures.
+    Uploads annotated bytes to S3 and returns a time-limited download URL.
 
-    Parameters
-    ----------
-    images : list[str]
-        List of paths to input images.
+    Args:
+        jpeg_bytes (bytes): image data.
 
-    Returns
-    -------
-    dict[str, list[str]]
-        A dictionary mapping each image filename to a list of extracted SMILES
-        strings derived from detected molecules in that image.
-
-    Side Effects
-    ------------
-    - Saves an annotated image for each input image as <original_name>_annotated.jpg,
-      containing bounding boxes around detected molecules.
+    Returns:
+        str: Presigned URL valid for ANNOTATED_IMAGE_PRESIGN_SECONDS.
     """
-    
-    result = dict()
-    annotated_images = []
-    
-    for img_path in images:
-        img_path = Path(img_path)
-        img_bytes = img_path.read_bytes()
-        
-        openchemie_result = extract_molecules_from_figure(img_bytes)
-        recognitions = openchemie_result.get("data", [])
-        errors = openchemie_result.get("errors", None)
-        entries = []
-        if recognitions:  
-            entries = recognitions[0].get("bboxes", [])
-        bboxes, smiles = [], []
-        
-        for entry in entries:
-            smi = entry.get("smiles")
-            if smi:
-                smiles.append(smi)
-                bboxes.append(entry.get("bbox"))
-        
-        if bboxes:
-            annotated_img = draw_bboxes_on_image(img_bytes, {"molecules": bboxes})
-            out_dir = Path(os.environ.get("PROCESSED_IMG_STORAGE_PATH", "/tmp/chemical_mcp_annotated"))
-            os.makedirs(out_dir, exist_ok=True)
-            out_path = out_dir / f"{img_path.stem}_annotated.jpg"
-            out_path.write_bytes(annotated_img)
-            annotated_images.append(out_path.as_posix())
-
-        result[img_path.name] = dict()
-        result[img_path.name].update({"smiles": smiles})
-        result[img_path.name].update({"errors": errors})
-    
-    return {
-        "answer": result,
-        "metadata": {
-            "annotated_images": annotated_images
-                }
-        }
+    key = s3_service.upload_bytes(
+        ANNOTATED_IMAGES_S3_PREFIX,
+        f"{uuid.uuid4()}.jpg",
+        jpeg_bytes,
+    )
+    return s3_service.generate_presigned_url(
+        key, expiration=ANNOTATED_IMAGE_PRESIGN_SECONDS
+    )
 
 
-def reactions_ocr(images: list[str]) -> dict:
+def _normalize_figure_response(raw: Any) -> tuple[list, Optional[Any]]:
     """
-    Extracts reactions from a list of image paths using OpenChemIE tools
-    and saves annotated versions of each image with bounding boxes of detected reaction elements.
+    Normalizes the chemical figure API payload into recognitions and errors.
 
-    Parameters
-    ----------
-    images : list[str]
-        List of paths to input images.
+    Args:
+        raw (Any): Raw response from the figure extractor (dict with "data"/"errors" or a list).
 
-    Returns
-    -------
-    dict[str, list[str]]
-        A dictionary mapping each image filename to a list of extracted reaction elements
-        such as reactants, conditions and products.
-    
-    Side Effects
-    ------------
-    - Saves an annotated image for each input image as <original_name>_annotated.jpg
-      containing bounding boxes around detected reaction elements.
+    Returns:
+        tuple[list, Optional[Any]]: (recognitions list, errors or None). Empty list if shape is unknown.
     """
-    result = dict()
-    annotated_images = []
+    if isinstance(raw, dict):
+        return raw.get("data", []), raw.get("errors")
+    if isinstance(raw, list):
+        return raw, None
+    return [], None
 
-    for img_path in images:
-        img_path = Path(img_path)
-        img_bytes = img_path.read_bytes()
-        result[img_path.name] = dict()
-        
-        openchemie_result = extract_reactions_from_figure(img_bytes)
-        recognitions = openchemie_result.get("data", [])
-        errors = openchemie_result.get("errors", None)
-        
-        reactions = []
-        if recognitions:  
-            reactions = recognitions[0].get("reactions", [])
-        
-        bboxes = {"reagents": [], "products": [], "conditions": []}
-        for reaction_id, reaction in enumerate(reactions):
-            result[img_path.name][f"reaction_{reaction_id}"] = {"reactants": [], "products": [], "conditions": []}
-            for r in reaction.get("reactants", []):
-                bboxes["reagents"].append(r["bbox"])
-                try:
-                    result[img_path.name][f"reaction_{reaction_id}"]["reactants"].append(r["smiles"])
-                except:
-                    result[img_path.name][f"reaction_{reaction_id}"]["reactants"].append(r["text"])
 
-            for p in reaction.get("products", []):
-                bboxes["products"].append(p["bbox"])
-                try:
-                    result[img_path.name][f"reaction_{reaction_id}"]["products"].append(p["smiles"])
-                except:
-                    result[img_path.name][f"reaction_{reaction_id}"]["products"].append(p["text"])
+def extract_molecules_from_image_url(image_url: str) -> Dict:
+    """
+    Extracts molecule SMILES and bounding boxes from a single figure URL.
 
-            for c in reaction.get("conditions", []):
-                bboxes["conditions"].append(c["bbox"])
-                try:
-                    result[img_path.name][f"reaction_{reaction_id}"]["conditions"].append(c["smiles"])
-                except:
-                    if c["text"] != []:
-                        result[img_path.name][f"reaction_{reaction_id}"]["conditions"].append(c["text"])
-        
-        if any(bboxes.values()):
-            annotated_img = draw_bboxes_on_image(img_bytes, bboxes)
-            out_dir = Path(os.environ.get("PROCESSED_IMG_STORAGE_PATH", "/tmp/chemical_mcp_annotated"))
-            os.makedirs(out_dir, exist_ok=True)
-            out_path = out_dir / f"{img_path.stem}_annotated.jpg"
-            out_path.write_bytes(annotated_img)
-            annotated_images.append(out_path.as_posix())
+    Args:
+        image_url (str): URL of the image to analyze.
+
+    Returns:
+        Dict: Keys "answer" (label → smiles/errors) and "metadata" (annotated_image_presigned_urls, source_url).
+    """
+    label = _label_from_image_url(image_url)
+    img_bytes = download_url_to_bytes(image_url)
+    raw = chem_service.extract_molecules_from_figure(img_bytes)
+    recognitions, errors = _normalize_figure_response(raw)
+
+    entries: list = []
+    if recognitions and isinstance(recognitions[0], dict):
+        entries = recognitions[0].get("bboxes", []) or []
+
+    bboxes: list = []
+    smiles: list = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        smi = entry.get("smiles")
+        if smi:
+            smiles.append(smi)
+            bbox = entry.get("bbox")
+            if bbox is not None:
+                bboxes.append(bbox)
+
+    annotated_urls: list[str] = []
+    if bboxes:
+        annotated_jpeg = draw_bboxes_on_image(img_bytes, {"molecules": bboxes})
+        annotated_urls.append(_upload_annotated_jpeg_and_presign(annotated_jpeg))
 
     return {
-        "answer": result,
+        "answer": {label: {"smiles": smiles, "errors": errors}},
         "metadata": {
-            "annotated_images": annotated_images
-        }
+            "annotated_image_presigned_urls": annotated_urls,
+            "source_url": image_url.strip(),
+        },
     }
 
 
-def render_molecule_detections(images: list, bboxes_list: list, res_path: str) -> None:
+def extract_reactions_from_image_url(image_url: str) -> Dict:
     """
-    Renders bounding boxes around molecular structures that were extracted by
-    OpenChemIE tools and saves annotated versions of each image.
+    Extracts reactions (reactants, products, conditions) from a single figure URL.
 
-    Parameters
-    ----------
-    images : list
-        List of images.
+    Args:
+        image_url (str): URL of the image to analyze.
 
-    bboxes_list: list
-        Coordinates of boxes.
-
-    res_path: str
-        Path to resulting images.
-
-    Returns
-    -------
-        None
-
-    Side Effects
-    ------------
-    - Saves an annotated image for each input image as <original_name>_annotated.jpg,
-      containing bounding boxes around detected molecules.
+    Returns:
+        Dict: Keys "answer" (label → per-reaction structure and errors) and "metadata"
+              (annotated_image_presigned_urls, source_url).
     """
+    label = _label_from_image_url(image_url)
+    img_bytes = download_url_to_bytes(image_url)
+    raw = chem_service.extract_reactions_from_figure(img_bytes)
+    recognitions, errors = _normalize_figure_response(raw)
 
-    for i, img_bytes in enumerate(images):
+    reactions: list = []
+    if recognitions and isinstance(recognitions[0], dict):
+        reactions = recognitions[0].get("reactions", []) or []
 
-        entries = bboxes_list[i][0].get('bboxes')
+    per_image: Dict[str, Any] = {}
+    if errors is not None:
+        per_image["errors"] = errors
 
-        if entries:
-            bboxes = []
+    bboxes = {"reagents": [], "products": [], "conditions": []}
+    for reaction_id, reaction in enumerate(reactions):
+        if not isinstance(reaction, dict):
+            continue
+        key = f"reaction_{reaction_id}"
+        per_image[key] = {"reactants": [], "products": [], "conditions": []}
+        for r in reaction.get("reactants", []) or []:
+            if isinstance(r, dict) and "bbox" in r:
+                bboxes["reagents"].append(r["bbox"])
+            try:
+                per_image[key]["reactants"].append(r["smiles"])
+            except (KeyError, TypeError):
+                if isinstance(r, dict):
+                    per_image[key]["reactants"].append(r.get("text"))
 
-            for entry in entries:
-                smi = entry.get("smiles")
-                if smi:
-                    bboxes.append(entry.get("bbox"))
+        for p in reaction.get("products", []) or []:
+            if isinstance(p, dict) and "bbox" in p:
+                bboxes["products"].append(p["bbox"])
+            try:
+                per_image[key]["products"].append(p["smiles"])
+            except (KeyError, TypeError):
+                if isinstance(p, dict):
+                    per_image[key]["products"].append(p.get("text"))
 
-            if bboxes:
-                annotated_img = draw_bboxes_on_image(img_bytes, bboxes)
-                os.makedirs(Path(res_path), exist_ok=True)
-                out_path = Path(res_path, f"{i}_annotated.jpg")
-                out_path.write_bytes(annotated_img)
+        for c in reaction.get("conditions", []) or []:
+            if isinstance(c, dict) and "bbox" in c:
+                bboxes["conditions"].append(c["bbox"])
+            try:
+                per_image[key]["conditions"].append(c["smiles"])
+            except (KeyError, TypeError):
+                if isinstance(c, dict):
+                    t = c.get("text")
+                    if t not in (None, [], ""):
+                        per_image[key]["conditions"].append(t)
+
+    annotated_urls: list[str] = []
+    if any(bboxes.values()):
+        annotated_jpeg = draw_bboxes_on_image(img_bytes, bboxes)
+        annotated_urls.append(_upload_annotated_jpeg_and_presign(annotated_jpeg))
+
+    return {
+        "answer": {label: per_image},
+        "metadata": {
+            "annotated_image_presigned_urls": annotated_urls,
+            "source_url": image_url.strip(),
+        },
+    }
+
+
+def extract_molecules_from_image_urls(image_urls: list[str]) -> Dict:
+    """
+    Runs molecule extraction over multiple image URLs.
+
+    Args:
+        image_urls (list[str]): Non-empty URLs; blanks are skipped.
+
+    Returns:
+        Dict: "answer" is a merged mapping or an error string if all URLs failed; "metadata" includes
+              annotated URLs, source URLs, and optional "failed" entries per URL.
+    """
+    combined: Dict[str, Any] = {}
+    annotated: list[str] = []
+    source_urls: list[str] = []
+    failures: list[Dict[str, str]] = []
+
+    urls = [u.strip() for u in image_urls if u and str(u).strip()]
+    for i, url in enumerate(urls):
+        try:
+            one = extract_molecules_from_image_url(url)
+        except Exception as e:
+            failures.append({"url": url, "error": str(e)})
+            continue
+        for k, v in one["answer"].items():
+            key = k
+            if key in combined:
+                key = f"{k}__{i}"
+            combined[key] = v
+        annotated.extend(one["metadata"].get("annotated_image_presigned_urls", []))
+        source_urls.append(one["metadata"].get("source_url", url))
+
+    meta: Dict[str, Any] = {
+        "annotated_image_presigned_urls": annotated,
+        "source_urls": source_urls,
+    }
+    if failures:
+        meta["failed"] = failures
+    if not combined and failures:
+        return {"answer": "All image URLs failed molecule extraction.", "metadata": meta}
+    return {"answer": combined, "metadata": meta}
+
+
+def extract_reactions_from_image_urls(image_urls: list[str]) -> Dict:
+    """
+    Runs reaction extraction over multiple image URLs.
+
+    Args:
+        image_urls (list[str]): Non-empty URLs; blanks are skipped.
+
+    Returns:
+        Dict: "answer" is a merged mapping or an error string if all URLs failed; "metadata" includes
+              annotated URLs, source URLs, and optional "failed" entries per URL.
+    """
+    combined: Dict[str, Any] = {}
+    annotated: list[str] = []
+    source_urls: list[str] = []
+    failures: list[Dict[str, str]] = []
+
+    urls = [u.strip() for u in image_urls if u and str(u).strip()]
+    for i, url in enumerate(urls):
+        try:
+            one = extract_reactions_from_image_url(url)
+        except Exception as e:
+            failures.append({"url": url, "error": str(e)})
+            continue
+        for k, v in one["answer"].items():
+            key = k
+            if key in combined:
+                key = f"{k}__{i}"
+            combined[key] = v
+        annotated.extend(one["metadata"].get("annotated_image_presigned_urls", []))
+        source_urls.append(one["metadata"].get("source_url", url))
+
+    meta: Dict[str, Any] = {
+        "annotated_image_presigned_urls": annotated,
+        "source_urls": source_urls,
+    }
+    if failures:
+        meta["failed"] = failures
+    if not combined and failures:
+        return {"answer": "All image URLs failed reaction extraction.", "metadata": meta}
+    return {"answer": combined, "metadata": meta}
