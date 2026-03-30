@@ -18,7 +18,17 @@ DEFAULT_BOX_COLOR = "gray"
 
 
 def download_url_to_bytes(url: str, timeout: int = 120) -> bytes:
-    """Download image (or binary) from HTTP(S) URL."""
+    """
+    Downloads binary content (e.g. an image) from an HTTP(S) URL.
+
+    Args:
+        url (str): Full URL to fetch.
+        timeout (int, optional): Request timeout in seconds. Defaults to 120.
+
+    Returns:
+        bytes: Response body from the server.
+        
+    """
     url = url.strip()
     if not url:
         raise ValueError("Empty image URL")
@@ -28,7 +38,17 @@ def download_url_to_bytes(url: str, timeout: int = 120) -> bytes:
 
 
 def draw_bboxes_on_image(image: bytes, bboxes: dict[str, Any]) -> bytes:
-    """Draw normalized bboxes (0..1) on image; returns JPEG bytes."""
+    """
+    Draws axis-aligned bounding boxes on an image and returns a JPEG.
+
+    Args:
+        image (bytes): Raw image bytes, or a fitz.Pixmap (converted internally).
+        bboxes (dict[str, Any]): Map of category name to a list of boxes; each box is
+            [x1, y1, x2, y2] in normalized coordinates (0..1 relative to width/height).
+
+    Returns:
+        bytes: JPEG-encoded image with outlines.
+    """
     if isinstance(image, fitz.Pixmap):
         image = image.tobytes("ppm")
     img = Image.open(io.BytesIO(image))

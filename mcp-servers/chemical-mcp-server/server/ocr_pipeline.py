@@ -5,28 +5,55 @@ from urllib.parse import unquote, urlparse
 from .service_resources import chem_service, s3_service
 from .utils.image_utils import download_url_to_bytes, draw_bboxes_on_image
 
-_ANNOTATED_IMAGES_S3_PREFIX = "chemical_mcp/annotated_images"
-_ANNOTATED_IMAGE_PRESIGN_SECONDS = 3600
+ANNOTATED_IMAGES_S3_PREFIX = "chemical_mcp/annotated_images"
+ANNOTATED_IMAGE_PRESIGN_SECONDS = 3600
 
 
 def _label_from_image_url(url: str) -> str:
+    """
+    Builds a short label for an image from the last URL path.
+
+    Args:
+        url (str): URL for image.
+
+    Returns:
+        str: Unquoted filename from the path, or "image" if the path has no name.
+    """
     path = urlparse(url.strip()).path
     name = path.rstrip("/").rsplit("/", 1)[-1] if path else ""
     return unquote(name) if name else "image"
 
 
 def _upload_annotated_jpeg_and_presign(jpeg_bytes: bytes) -> str:
+    """
+    Uploads annotated bytes to S3 and returns a time-limited download URL.
+
+    Args:
+        jpeg_bytes (bytes): image data.
+
+    Returns:
+        str: Presigned URL valid for ANNOTATED_IMAGE_PRESIGN_SECONDS.
+    """
     key = s3_service.upload_bytes(
-        _ANNOTATED_IMAGES_S3_PREFIX,
+        ANNOTATED_IMAGES_S3_PREFIX,
         f"{uuid.uuid4()}.jpg",
         jpeg_bytes,
     )
     return s3_service.generate_presigned_url(
-        key, expiration=_ANNOTATED_IMAGE_PRESIGN_SECONDS
+        key, expiration=ANNOTATED_IMAGE_PRESIGN_SECONDS
     )
 
 
 def _normalize_figure_response(raw: Any) -> tuple[list, Optional[Any]]:
+    """
+    Normalizes the chemical figure API payload into recognitions and errors.
+
+    Args:
+        raw (Any): Raw response from the figure extractor (dict with "data"/"errors" or a list).
+
+    Returns:
+        tuple[list, Optional[Any]]: (recognitions list, errors or None). Empty list if shape is unknown.
+    """
     if isinstance(raw, dict):
         return raw.get("data", []), raw.get("errors")
     if isinstance(raw, list):
@@ -35,6 +62,15 @@ def _normalize_figure_response(raw: Any) -> tuple[list, Optional[Any]]:
 
 
 def extract_molecules_from_image_url(image_url: str) -> Dict:
+    """
+    Extracts molecule SMILES and bounding boxes from a single figure URL.
+
+    Args:
+        image_url (str): URL of the image to analyze.
+
+    Returns:
+        Dict: Keys "answer" (label → smiles/errors) and "metadata" (annotated_image_presigned_urls, source_url).
+    """
     label = _label_from_image_url(image_url)
     img_bytes = download_url_to_bytes(image_url)
     raw = chem_service.extract_molecules_from_figure(img_bytes)
@@ -71,6 +107,16 @@ def extract_molecules_from_image_url(image_url: str) -> Dict:
 
 
 def extract_reactions_from_image_url(image_url: str) -> Dict:
+    """
+    Extracts reactions (reactants, products, conditions) from a single figure URL.
+
+    Args:
+        image_url (str): URL of the image to analyze.
+
+    Returns:
+        Dict: Keys "answer" (label → per-reaction structure and errors) and "metadata"
+              (annotated_image_presigned_urls, source_url).
+    """
     label = _label_from_image_url(image_url)
     img_bytes = download_url_to_bytes(image_url)
     raw = chem_service.extract_reactions_from_figure(img_bytes)
@@ -134,6 +180,16 @@ def extract_reactions_from_image_url(image_url: str) -> Dict:
 
 
 def extract_molecules_from_image_urls(image_urls: list[str]) -> Dict:
+    """
+    Runs molecule extraction over multiple image URLs.
+
+    Args:
+        image_urls (list[str]): Non-empty URLs; blanks are skipped.
+
+    Returns:
+        Dict: "answer" is a merged mapping or an error string if all URLs failed; "metadata" includes
+              annotated URLs, source URLs, and optional "failed" entries per URL.
+    """
     combined: Dict[str, Any] = {}
     annotated: list[str] = []
     source_urls: list[str] = []
@@ -166,6 +222,16 @@ def extract_molecules_from_image_urls(image_urls: list[str]) -> Dict:
 
 
 def extract_reactions_from_image_urls(image_urls: list[str]) -> Dict:
+    """
+    Runs reaction extraction over multiple image URLs.
+
+    Args:
+        image_urls (list[str]): Non-empty URLs; blanks are skipped.
+
+    Returns:
+        Dict: "answer" is a merged mapping or an error string if all URLs failed; "metadata" includes
+              annotated URLs, source URLs, and optional "failed" entries per URL.
+    """
     combined: Dict[str, Any] = {}
     annotated: list[str] = []
     source_urls: list[str] = []
