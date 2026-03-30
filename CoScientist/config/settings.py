@@ -7,6 +7,8 @@ from typing import List, Optional
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from rag_tools.config import Settings as ToolRAGSettings
+
 
 ROOT_DIR = Path(__file__).parent.parent.absolute()
 
@@ -128,6 +130,7 @@ class Settings(BaseSettings):
     collections: CollectionsSettings = CollectionsSettings()
     s3: S3Settings = S3Settings()
     opik: OpikSettings = OpikSettings()
+    tool_rag: ToolRAGSettings = ToolRAGSettings()
 
     model_config = SettingsConfigDict(
         env_file=".env",          
