@@ -7,6 +7,8 @@ Runs the multi-agent scientific discovery pipeline:
 - Experimentation (FEDOT)
 - Orchestration
 """
+from dotenv import load_dotenv
+load_dotenv()
 
 import asyncio
 from typing import Optional
