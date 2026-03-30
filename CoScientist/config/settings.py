@@ -37,6 +37,14 @@ class LLMSettings(BaseModel):
 
 
 # =========================
+# LLM CONFIG
+# =========================
+class ServicesSettings(BaseModel):
+    tavily_api_key: Optional[str] = None
+    openalex_api_key: Optional[str] = None
+
+
+# =========================
 # STORAGE
 # =========================
 class StorageSettings(BaseModel):
