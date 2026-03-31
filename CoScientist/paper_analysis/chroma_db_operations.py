@@ -31,16 +31,18 @@ from CoScientist.paper_parser.parse_and_split import (
     html_chunking,
     clean_up_after_processing
 )
-from definitions import CONFIG_PATH, ROOT_DIR
 
-load_dotenv(CONFIG_PATH)
+from CoScientist.config import ROOT_DIR
+from CoScientist.config import get_settings
+settings = get_settings()
+
 DATA_LOADER = ImageLoader()
-IMAGES_PATH = os.path.join(ROOT_DIR, os.environ["PARSE_RESULTS_PATH"])
-CHROMA_DB_PATH = os.path.join(ROOT_DIR, os.environ["CHROMA_STORAGE_PATH"])
-VISION_LLM_URL = os.environ["VISION_LLM_URL"]
-SUMMARY_LLM_URL = os.environ["SUMMARY_LLM_URL"]
-PAPERS_PATH = os.path.join(ROOT_DIR, os.environ["PAPERS_STORAGE_PATH"])
-USE_S3 = os.getenv("USE_S3") == "True"
+IMAGES_PATH = os.path.join(ROOT_DIR, settings.storage.parse_results)
+CHROMA_DB_PATH = os.path.join(ROOT_DIR, settings.storage.chroma_storage)
+VISION_LLM_URL = settings.llm.vision_url
+SUMMARY_LLM_URL = settings.llm.summary_url
+PAPERS_PATH = os.path.join(ROOT_DIR, settings.storage.papers_storage)
+USE_S3 = settings.s3.use_s3 == "True"
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
