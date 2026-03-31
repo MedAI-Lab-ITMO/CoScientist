@@ -18,11 +18,11 @@ from protollm.connectors import create_llm_connector
 from pydantic import BaseModel, Field
 import requests
 
-from ChemCoScientist.chemical_utils.openchemie_functions import extract_molecules_from_figure, extract_reactions_from_figure
-from ChemCoScientist.paper_analysis.constants import ResearchArea
-from ChemCoScientist.paper_analysis.prompts import summarisation_prompt
-from ChemCoScientist.paper_analysis.settings import allowed_providers
-from ChemCoScientist.paper_analysis.settings import settings as default_settings
+from CoScientist.chemical_utils.openchemie_functions import extract_molecules_from_figure, extract_reactions_from_figure
+from CoScientist.paper_analysis.constants import ResearchArea
+from CoScientist.paper_analysis.prompts import summarisation_prompt
+from CoScientist.paper_analysis.settings import allowed_providers
+from CoScientist.paper_analysis.settings import settings as default_settings
 from CoScientist.paper_parser.s3_connection import S3BucketService
 from CoScientist.paper_parser.s3_connection import s3_service as default_s3_service
 from CoScientist.paper_parser.utils import load_image_as_binary

@@ -10,12 +10,12 @@ from pydantic import BaseModel, Field
 from pypdf import PdfReader, PdfWriter
 from io import BytesIO
 
-from ChemCoScientist.paper_analysis.chroma_db_operations import ChromaDBPaperStore
-from ChemCoScientist.paper_analysis.constants import ResearchArea
-from ChemCoScientist.paper_analysis.prompts import sys_prompt, explore_my_papers_prompt, extract_query_filters_prompt
-from ChemCoScientist.paper_analysis.settings import allowed_providers
+from CoScientist.paper_analysis.chroma_db_operations import ChromaDBPaperStore
+from CoScientist.paper_analysis.constants import ResearchArea
+from CoScientist.paper_analysis.prompts import sys_prompt, explore_my_papers_prompt, extract_query_filters_prompt
+from CoScientist.paper_analysis.settings import allowed_providers
 from CoScientist.paper_parser.utils import convert_to_base64, prompt_func, load_image_as_binary
-from ChemCoScientist.chemical_utils.chemical_functions import *
+from CoScientist.chemical_utils.chemical_functions import *
 from definitions import CONFIG_PATH
 
 load_dotenv(CONFIG_PATH)
