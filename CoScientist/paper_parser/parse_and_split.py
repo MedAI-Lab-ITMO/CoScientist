@@ -14,21 +14,22 @@ from marker.output import text_from_rendered, save_output
 from CoScientist.paper_parser.parser_prompts import cls_prompt, table_extraction_prompt
 from CoScientist.paper_parser.utils import prompt_func, convert_to_base64
 from CoScientist.paper_parser.s3_connection import S3BucketService
-from CoScientist import project_config
+from CoScientist.config import get_settings
 
+settings = get_settings()
 _log = logging.getLogger(__name__)
 
-ROOT_DIR = project_config.storage.root_dir
-PARSE_RESULTS_PATH = os.path.join(ROOT_DIR, project_config.storage.parse_results)
-PAPERS_PATH = os.path.join(ROOT_DIR, project_config.storage.papers_storage)
-VISION_LLM_URL = project_config.llm.vision_url
+ROOT_DIR = settings.storage.root_dir
+PARSE_RESULTS_PATH = os.path.join(ROOT_DIR, settings.storage.parse_results)
+PAPERS_PATH = os.path.join(ROOT_DIR, settings.storage.papers_storage)
+VISION_LLM_URL = settings.llm.vision_url
 VISION_LLM_NAME = VISION_LLM_URL.split(';')[1]
-LLM_SERVICE_CC_URL = project_config.llm.service_cc_url
-LLM_SERVICE_KEY = project_config.llm.service_key
-MARKER_LLM = project_config.llm.marker_model
-LLM_SERVICE_URL = project_config.llm.service_url
+LLM_SERVICE_CC_URL = settings.llm.service_cc_url
+LLM_SERVICE_KEY = settings.llm.service_key
+MARKER_LLM = settings.llm.marker_model
+LLM_SERVICE_URL = settings.llm.service_url
 IMAGE_RESOLUTION_SCALE = 2.0
-USE_S3 = project_config.s3.use_s3
+USE_S3 = settings.s3.use_s3
 
 
 def parse_with_marker(paper_name: str, use_llm: bool=False) -> (str, Path):

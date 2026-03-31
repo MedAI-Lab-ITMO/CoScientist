@@ -1,19 +1,21 @@
 import requests
 from typing import List, Dict, Any, Callable
 from functools import wraps
-from dotenv import load_dotenv
 import os
 import logging
 import inspect
-from definitions import CONFIG_PATH
 
-load_dotenv(CONFIG_PATH)
+from CoScientist.config import get_settings
+settings = get_settings()
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-CHEM_SERVICES_HOST = os.environ.get("CHEM_SERVICES_HOST")
-CHEM_SERVICES_PORT = os.environ.get("CHEM_SERVICES_PORT")
+
+
+CHEM_SERVICES_HOST = settings.hosts_ports.chem_services_host 
+CHEM_SERVICES_PORT = settings.hosts_ports.chem_services_port 
 CHEM_SERVICES_URL = f"http://{CHEM_SERVICES_HOST}:{CHEM_SERVICES_PORT}"
 REQUEST_TIMEOUT = 60
 

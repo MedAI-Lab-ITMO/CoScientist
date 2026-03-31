@@ -1,14 +1,13 @@
 from typing import List, Dict, Any
 import requests
-from dotenv import load_dotenv
 import os
-from definitions import CONFIG_PATH
 import logging
 
-load_dotenv(CONFIG_PATH)
+from CoScientist.config import get_settings
+settings = get_settings()
 
-RETROSYNTHESIS_SERVICES_HOST = os.environ.get("RETROSYNTHESIS_SERVICES_HOST")
-RETROSYNTHESIS_SERVICES_PORT = os.environ.get("RETROSYNTHESIS_SERVICES_PORT")
+RETROSYNTHESIS_SERVICES_HOST = settings.hosts_ports.retrosynthesis_services_host 
+RETROSYNTHESIS_SERVICES_PORT = settings.hosts_ports.retrosynthesis_services_port
 RETROSYNTHESIS_SERVICES_URL = f"http://{RETROSYNTHESIS_SERVICES_HOST}:{RETROSYNTHESIS_SERVICES_PORT}"
 REQUEST_TIMEOUT = 60
 
