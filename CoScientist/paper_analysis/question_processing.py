@@ -9,17 +9,16 @@ from protollm.connectors import create_llm_connector
 from pydantic import BaseModel, Field
 from pypdf import PdfReader, PdfWriter
 from io import BytesIO
-from pathlib import Path
 
-from chroma_db_operations import ChromaDBPaperStore
-from constants import ResearchArea
-from prompts import sys_prompt, explore_my_papers_prompt, extract_query_filters_prompt
-from settings import allowed_providers
+from ChemCoScientist.paper_analysis.chroma_db_operations import ChromaDBPaperStore
+from ChemCoScientist.paper_analysis.constants import ResearchArea
+from ChemCoScientist.paper_analysis.prompts import sys_prompt, explore_my_papers_prompt, extract_query_filters_prompt
+from ChemCoScientist.paper_analysis.settings import allowed_providers
 from CoScientist.paper_parser.utils import convert_to_base64, prompt_func, load_image_as_binary
-from chemical_functions import *
+from ChemCoScientist.chemical_utils.chemical_functions import *
+from definitions import CONFIG_PATH
 
-ENV_PATH = Path(__file__).resolve().parents[1] / ".env"
-load_dotenv(ENV_PATH)
+load_dotenv(CONFIG_PATH)
 
 VISION_LLM_URL = os.environ["VISION_LLM_URL"]
 
@@ -189,16 +188,15 @@ def simple_query_llm(model_url: str, question: str, pdfs: list, img_descriptions
         model_url (str): The URL of the language model to use for querying.
         question (str): The question to ask the language model.
         pdfs (list): A list of paths to PDF documents to provide as context.
-        img_descriptions (str): A string containing descriptions of images related to the question, to provide additional context.
 
     Returns:
         dict: A dictionary containing the answer from the language model. The dictionary has a single key, 'answer',
             which holds the answer string.
     """
-    # from ChemCoScientist.frontend.utils import update_activity
+    from ChemCoScientist.frontend.utils import update_activity
 
-    # if pdfs:
-        # update_activity(os.path.dirname(pdfs[0]))
+    if pdfs:
+        update_activity(os.path.dirname(pdfs[0]))
     llm = create_llm_connector(model_url)
 
     content = []
@@ -386,12 +384,12 @@ if __name__ == "__main__":
     #######################################################
 
     paper_store = ChromaDBPaperStore()
-    # question = 'What are papers since 2023 about analytical chemistry are focused on?'
+    question = 'What are papers since 2023 about analytical chemistry are focused on?'
       # question = 'What components are involved in the synthesis of BASHY dyes, and what are the uses of these dyes?'
     # question = 'What IC50 values do weakly active and highly active Bruton\'s tyrosine kinase inhibitors have?'
-    question = 'How does the synthesis of Glionitrin A/B happen?'
-    paper = r"C:\Users\computer\Documents\GitHub\CoScientist\mcp-servers\paper-analysis-mcp-server\koning-et-al-2021-total-synthesis.pdf"
-    res = simple_query_llm(VISION_LLM_URL, question, [paper], "")
-    # result = process_question(question, paper_store)
+    # question = 'How does the synthesis of Glionitrin A/B happen?'
+
+    # res = simple_query_llm(VISION_LLM_URL, question, [paper])
+    result = process_question(question, paper_store)
     from pprint import pprint
-    pprint(res)
+    pprint(result)

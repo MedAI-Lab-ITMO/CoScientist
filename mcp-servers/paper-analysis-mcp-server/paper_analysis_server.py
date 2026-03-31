@@ -10,10 +10,10 @@ from protollm.connectors import create_llm_connector
 from pathlib import Path
 from fastmcp import FastMCP
 
-from chemical_functions import extract_reactions_from_pdf, extract_molecules_from_pdf, remove_keys
-from chroma_db_operations import ChromaDBPaperStore
-from prompts import paraphrase_prompt
-from question_processing import process_question, simple_query_llm
+from CoScientist.chemical_utils.chemical_functions import extract_reactions_from_pdf, extract_molecules_from_pdf, remove_keys
+from CoScientist.paper_analysis.chroma_db_operations import ChromaDBPaperStore
+from CoScientist.paper_analysis.prompts import paraphrase_prompt
+from CoScientist.paper_analysis.question_processing import process_question, simple_query_llm
 
 ENV_PATH = Path(__file__).resolve().parents[1] / ".env"
 load_dotenv(ENV_PATH)

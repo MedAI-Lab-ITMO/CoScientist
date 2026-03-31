@@ -8,11 +8,8 @@ import inspect
 from CoScientist.config import get_settings
 settings = get_settings()
 
-
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-
 
 CHEM_SERVICES_HOST = settings.hosts_ports.chem_services_host 
 CHEM_SERVICES_PORT = settings.hosts_ports.chem_services_port 

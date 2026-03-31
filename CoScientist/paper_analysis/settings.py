@@ -2,10 +2,10 @@ import os
 
 from dotenv import load_dotenv
 from pydantic_settings import BaseSettings
-from pathlib import Path
 
-ENV_PATH = Path(__file__).resolve().parents[1] / ".env"
-load_dotenv(ENV_PATH)
+from definitions import CONFIG_PATH
+
+load_dotenv(CONFIG_PATH)
 
 allowed_providers = ["google-vertex", "azure"]
 
@@ -38,7 +38,8 @@ class ChromaSettings(BaseSettings):
     embedding_host: str = os.getenv("EMBEDDING_HOST")
     embedding_port: int = os.getenv("EMBEDDING_PORT")
     embedding_endpoint: str = "/embed"
-
+    
+    # Reranker settings
     reranker_host: str = os.getenv("RERANKER_HOST")
     reranker_port: int = os.getenv("RERANKER_PORT")
     reranker_endpoint: str = "/rerank"
