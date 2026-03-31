@@ -11,14 +11,13 @@ from chromadb import Documents, EmbeddingFunction, Embeddings
 from chromadb.api.models import Collection
 from chromadb.utils.data_loaders import ImageLoader
 from concurrent.futures import ThreadPoolExecutor
-from dotenv import load_dotenv
 from langchain_core.documents.base import Document
 from langchain_core.messages import HumanMessage
 from protollm.connectors import create_llm_connector
 from pydantic import BaseModel, Field
 import requests
 
-from CoScientist.chemical_utils.openchemie_functions import extract_molecules_from_figure, extract_reactions_from_figure
+from CoScientist.chemical_utils.chemical_functions import extract_molecules_from_figure, extract_reactions_from_figure
 from CoScientist.paper_analysis.constants import ResearchArea
 from CoScientist.paper_analysis.prompts import summarisation_prompt
 from CoScientist.paper_analysis.settings import allowed_providers
