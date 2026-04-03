@@ -4,9 +4,9 @@ from pathlib import Path
 
 import boto3
 from botocore.client import Config
-from CoScientist.config import get_settings
 
-settings = get_settings()
+from dotenv import load_dotenv, find_dotenv
+load_dotenv(find_dotenv())
 
 
 class S3BucketService:
@@ -233,10 +233,10 @@ class S3BucketService:
 
 
 s3_service = S3BucketService(
-    endpoint=settings.s3.endpoint_url,
-    access_key=settings.s3.access_key,
-    secret_key=settings.s3.secret_key,
-    bucket_name=settings.s3.bucket_name
+    endpoint=os.getenv("S3_ENDPOINT_URL"),
+    access_key=os.getenv("S3_ACCESS_KEY"),
+    secret_key=os.getenv("S3_SECRET_KEY"),
+    bucket_name=os.getenv("S3_BUCKET_NAME")
 )
 
 if __name__ == "__main__":

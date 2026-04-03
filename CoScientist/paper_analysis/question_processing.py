@@ -16,10 +16,10 @@ from CoScientist.paper_analysis.settings import allowed_providers
 from CoScientist.paper_parser.utils import convert_to_base64, prompt_func, load_image_as_binary
 from CoScientist.chemical_utils.chemical_functions import *
 
-from CoScientist.config import get_settings
-settings = get_settings()
+from dotenv import load_dotenv, find_dotenv
+load_dotenv(find_dotenv())
 
-VISION_LLM_URL = settings.llm.vision_url
+VISION_LLM_URL = os.getenv("VISION_LLM_URL")
 
 
 class QueryFilters(BaseModel):

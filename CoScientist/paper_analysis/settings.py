@@ -2,10 +2,10 @@ import os
 
 from pydantic_settings import BaseSettings
 
-from CoScientist.config import get_settings
-settings = get_settings()
+from dotenv import load_dotenv, find_dotenv
+load_dotenv(find_dotenv())
 
-allowed_providers = settings.llm.allowed_providers
+allowed_providers = os.getenv("ALLOWED_PROVIDERS")
 
 
 class ChromaSettings(BaseSettings):
@@ -28,18 +28,18 @@ class ChromaSettings(BaseSettings):
     """
 
     # Chroma DB settings
-    chroma_host: str = settings.hosts_ports.chroma_host
-    chroma_port: int = settings.hosts_ports.chroma_port
+    chroma_host: str = os.getenv("CHROMA_HOST")
+    chroma_port: int = int(os.getenv("CHROMA_PORT"))
     allow_reset: bool = False
     
     # Documents collection's settings
-    embedding_host: str = settings.hosts_ports.embedding_host
-    embedding_port: int = settings.hosts_ports.embedding_port
+    embedding_host: str = os.getenv("EMBEDDING_HOST")
+    embedding_port: int = int(os.getenv("EMBEDDING_PORT"))
     embedding_endpoint: str = "/embed"
     
     # Reranker settings
-    reranker_host: str = settings.hosts_ports.reranker_host
-    reranker_port: int = settings.hosts_ports.reranker_port
+    reranker_host: str = os.getenv("RERANKER_HOST")
+    reranker_port: int = int(os.getenv("RERANKER_PORT"))
     reranker_endpoint: str = "/rerank"
 
 settings = ChromaSettings()
