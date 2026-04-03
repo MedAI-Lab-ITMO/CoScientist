@@ -1,24 +1,16 @@
-import json
 import logging
 import os
 
-from dotenv import load_dotenv
-from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
-from protollm.connectors import create_llm_connector
 from pathlib import Path
 from fastmcp import FastMCP
 
 from CoScientist.chemical_utils.chemical_functions import extract_reactions_from_pdf, extract_molecules_from_pdf, remove_keys
 from CoScientist.paper_analysis.chroma_db_operations import ChromaDBPaperStore
-from CoScientist.paper_analysis.prompts import paraphrase_prompt
 from CoScientist.paper_analysis.question_processing import process_question, simple_query_llm
 
-ENV_PATH = Path(__file__).resolve().parents[1] / ".env"
-load_dotenv(ENV_PATH)
-
-VISION_LLM_URL = os.environ["VISION_LLM_URL"]
+VISION_LLM_URL = os.getenv("VISION_LLM_URL")
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
