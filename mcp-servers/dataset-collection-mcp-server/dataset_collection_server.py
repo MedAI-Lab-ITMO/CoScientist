@@ -1,14 +1,12 @@
-import os, json, base64, uuid
+import os, base64, uuid
 import logging
 import pandas as pd
 import fitz
 from io import BytesIO, StringIO
 from pathlib import Path
 from PIL import Image
-from dotenv import load_dotenv, find_dotenv
 from langchain_core.messages import SystemMessage, HumanMessage
 from protollm.connectors import create_llm_connector
-from pprint import pprint
 from fastmcp import FastMCP
 
 logger = logging.getLogger(__name__)
@@ -18,8 +16,6 @@ from CoScientist.chemical_utils.ocr_pipeline import render_molecule_detections
 from CoScientist.paper_parser.s3_connection import S3BucketService
 
 from prompt import extract_mol_properties_prompt
-
-load_dotenv(find_dotenv(usecwd=True), override=True)
 
 IMG_STORAGE_PATH = os.getenv("IMG_STORAGE_PATH")
 DATASETS_LLM_URL = os.getenv("DATASETS_LLM_URL")
