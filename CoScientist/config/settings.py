@@ -21,7 +21,6 @@ class LLMSettings(BaseModel):
 
     service_key: Optional[str] = None
     openai_api_key: Optional[str] = None
-    tavily_api_key: Optional[str] = None
 
     main_url: Optional[str] = None
     scenario_url: Optional[str] = None
