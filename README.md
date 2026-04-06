@@ -132,7 +132,7 @@ A sequential agent that combines tool retrieval and execution:
 
 ### Prerequisites
 
-- Python 3.12.5
+- Python 3.12.11
 - pip package manager
 - Git
 - Access to required APIs (OpenAI, Tavily, etc.)
@@ -224,6 +224,10 @@ asyncio.run(main())
 
 ```bash
 python -m CoScientist.main
+
+OR
+
+uv run python -m CoScientist.main
 ```
 
 ### Chemical Computing Examples
