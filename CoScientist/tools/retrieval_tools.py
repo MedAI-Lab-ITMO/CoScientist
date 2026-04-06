@@ -89,7 +89,7 @@ class RetrievalToolSet(BaseToolset):
             Server metadata.
         """
 
-        postgres = PostgresClient(settings.rag.postgres)
+        postgres = PostgresClient(settings.postgres)
         await postgres.initialize()
 
         server: MCPServer = await postgres.get_server(server_id)
@@ -98,7 +98,7 @@ class RetrievalToolSet(BaseToolset):
 
         return {
             "status": "success",
-            "result": results,
+            "result": server,
         }
 
 
