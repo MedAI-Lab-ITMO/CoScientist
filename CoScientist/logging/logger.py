@@ -12,16 +12,19 @@ formatter = logging.Formatter(
     "%(asctime)s - %(levelname)s - %(name)s - %(message)s"
 )
 
+
+os.makedirs(settings.storage.logging_path, exist_ok=True)
+
 # File handler
 file_handler = logging.FileHandler(os.path.join(settings.storage.logging_path, "app.log"))
 file_handler.setFormatter(formatter)
 
 # Console handler
-console_handler = logging.StreamHandler()
-console_handler.setFormatter(formatter)
+# console_handler = logging.StreamHandler()
+# console_handler.setFormatter(formatter)
 
 logger.addHandler(file_handler)
-logger.addHandler(console_handler)
+# logger.addHandler(console_handler)
 
 
 def get_logger():
