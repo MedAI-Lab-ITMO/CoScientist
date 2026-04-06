@@ -46,8 +46,6 @@ Rules:
 - Prefer minimal set of servers
 - Do NOT guess — always retrieve before deciding
 
-Final output:
-Return a JSON list of server_ids
 '''
 
 fedot_instruction = '''

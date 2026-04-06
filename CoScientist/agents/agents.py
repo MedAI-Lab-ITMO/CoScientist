@@ -58,7 +58,7 @@ tool_retriever_agent = LlmAgent(
     model=LiteLlm(model=MODEL),
     instruction=tool_retriever_instruction,
     description="Agent to retrieve relevant MCP servers from RAG database of MCP tools for given task.",
-    planner=planner,
+    # planner=planner,
     output_schema=RetrievalFinalResult,
     tools=retrieval_toolset_instance,
     output_key="retrieved_tools"
