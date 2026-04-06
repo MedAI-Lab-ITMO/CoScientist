@@ -127,7 +127,11 @@ def build_chroma_where_filter(filters: QueryFilters) -> dict | None:
 
 
 def query_llm(
-    model_url: str, question: str, txt_context: str, img_paths: list[str]
+    model_url: str,
+    question: str,
+    system_prompt: str,
+    txt_context: str,
+    img_paths: list[str]
 ) -> tuple:
     """
     Queries a Large Language Model (LLM) to answer questions using provided context.
@@ -179,7 +183,12 @@ def query_llm(
     return content
 
 
-def simple_query_llm(model_url: str, question: str, pdfs: list, img_descriptions: str) -> dict:
+def simple_query_llm(
+    model_url: str,
+    question: str,
+    system_prompt: str,
+    pdfs: list,
+    img_descriptions: str) -> dict:
     """
     Queries a language model with a question and a list of PDF documents to provide context for answering the question.
 
@@ -233,7 +242,7 @@ def simple_query_llm(model_url: str, question: str, pdfs: list, img_descriptions
     from langchain_core.messages import HumanMessage
 
     messages = [
-        SystemMessage(content=explore_my_papers_prompt),
+        SystemMessage(content=system_prompt),
         HumanMessage(content=content)
     ]
     
@@ -248,7 +257,10 @@ def simple_query_llm(model_url: str, question: str, pdfs: list, img_descriptions
     return {'answer': 'LLM invocation failed after 3 attempts.'}
 
 
-def process_question(question: str, store: ChromaDBPaperStore) -> dict:
+def process_question(
+    question: str,
+    system_prompt: str,
+    store: ChromaDBPaperStore) -> dict:
     """
     Processes a question by retrieving relevant text and image context from scientific papers and querying a Large Language Model (LLM) to generate an answer.
 
@@ -312,7 +324,7 @@ def process_question(question: str, store: ChromaDBPaperStore) -> dict:
             })
     img_paths_list = [d['path'] for d in img_paths]
 
-    ans = query_llm(VISION_LLM_URL, question, txt_context, list(img_paths_list))
+    ans = query_llm(VISION_LLM_URL, question, system_prompt, txt_context, list(img_paths_list))
 
     # Separate relevant context
     relevant_txt_data = [txt_data[num - 1] for num in ans['relevant_text']]
