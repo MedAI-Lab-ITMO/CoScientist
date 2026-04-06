@@ -13,6 +13,11 @@ from CoScientist.config import get_settings
 from CoScientist.agents.prompts import hypotheses_instruction, research_instruction, fedot_instruction, orchestrator_instruction, tool_retriever_instruction
 from CoScientist.tools import fedot_toolset_instance, websearch_toolset_instance, retrieval_toolset_instance
 from CoScientist.storage import RetrievalFinalResult
+from CoScientist.logging import multi_agent_tracer
+
+
+from opik.integrations.adk import track_adk_agent_recursive
+
 
 from typing import Dict, Any
 import uuid
@@ -86,6 +91,8 @@ orchestrator_agent = LlmAgent(
     description="Main Orchestrator Agent",
     tools=[AgentTool(agent=hypotheses_agent), AgentTool(agent=research_agent), AgentTool(agent=task_execution_agent)],
 )
+
+track_adk_agent_recursive(orchestrator_agent, multi_agent_tracer)
 
 
 

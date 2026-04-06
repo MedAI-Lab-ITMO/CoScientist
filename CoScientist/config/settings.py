@@ -113,7 +113,7 @@ class S3Settings(BaseModel):
 class OpikSettings(BaseModel):
     api_key: Optional[str] = None
     url_override: Optional[str] = None
-    project_name: Optional[str] = None
+    opik_project_name: Optional[str] = None
 
 
 # =========================
