@@ -47,7 +47,7 @@ def explore_chemistry_database(task: str) -> dict:
 
 
 @mcp.tool()
-def explore_my_papers(task: str, papers_path: Path, config: RunnableConfig) -> dict:
+def explore_my_papers(task: str, papers_path: Path) -> dict:
     """
     Answers questions based on the content of user-provided scientific papers. 
     This tool allows users to query specific documents they've uploaded, retrieving insights 
@@ -69,8 +69,6 @@ def explore_my_papers(task: str, papers_path: Path, config: RunnableConfig) -> d
     """
     logger.info('Running explore_my_papers tool...')
     logger.info(f'task: {task}')
-
-    session_id = config.get("configurable", {}).get("session_id", "1")
 
     papers = [str(f.resolve()) for f in papers_path.iterdir() if f.is_file() and f.suffix.lower() == '.pdf']
 
