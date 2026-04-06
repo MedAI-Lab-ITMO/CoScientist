@@ -19,6 +19,11 @@ from CoScientist.hitl.handler import AbstractHITLHandler, ConsoleHITLHandler
 # Variant B imports (commented out):
 # from CoScientist.hitl.callbacks import make_hitl_after_callback, make_hitl_before_callback
 # from CoScientist.hitl.models import HITLAction
+from CoScientist.logging import multi_agent_tracer
+
+
+from opik.integrations.adk import track_adk_agent_recursive
+
 
 from typing import Dict, Any, Optional
 import uuid
@@ -131,6 +136,8 @@ async def create_agents(hitl_handler: Optional[AbstractHITLHandler] = None):
         description="Main Orchestrator Agent",
         tools=[AgentTool(agent=hypotheses_agent), AgentTool(agent=research_agent), AgentTool(agent=task_execution_agent)],
     )
+
+    track_adk_agent_recursive(orchestrator_agent, multi_agent_tracer)
 
     return {
         "hypotheses_agent": hypotheses_agent,
