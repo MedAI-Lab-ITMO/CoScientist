@@ -10,6 +10,5 @@ RUN uv sync --frozen --no-install-project
 
 COPY mcp-servers/papers-search-mcp-server/ ./
 COPY CoScientist/paper_parser /app/CoScientist/paper_parser
-COPY definitions.py ./
 
 CMD ["uv", "run", "--no-project", "python", "papers_search_server.py"]

@@ -33,3 +33,13 @@ services:
     env_file:
       - ./dataset-collection-mcp-server/.env
     restart: unless-stopped
+
+  paper-analysis-mcp-server:
+    build: 
+      context: ..
+      dockerfile: mcp-servers/paper-analysis-mcp-server/Dockerfile
+    ports:
+      - "7334:7331"
+    env_file:
+      - ./paper-analysis-mcp-server/.env
+    restart: unless-stopped

@@ -13,6 +13,5 @@ RUN uv sync --frozen --no-install-project
 COPY mcp-servers/dataset-collection-mcp-server/ ./
 COPY CoScientist/paper_parser /app/CoScientist/paper_parser
 COPY CoScientist/chemical_utils /app/CoScientist/chemical_utils
-COPY definitions.py /app/.
 
 CMD ["uv", "run", "--no-project", "python", "dataset_collection_server.py"]

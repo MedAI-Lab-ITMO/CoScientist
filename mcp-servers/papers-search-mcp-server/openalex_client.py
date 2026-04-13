@@ -5,7 +5,6 @@ import logging
 import os
 from urllib.parse import urljoin
 import requests
-from dotenv import load_dotenv
 from pprint import pprint
 
 DOWNLOADED_PAPERS_PATH = os.environ.get("DOWNLOADED_PAPERS_PATH")

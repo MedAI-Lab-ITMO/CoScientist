@@ -5,17 +5,14 @@ import os
 import logging
 import inspect
 
-from CoScientist.config import get_settings
-settings = get_settings()
-
+from dotenv import load_dotenv, find_dotenv
+load_dotenv(find_dotenv())
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-
-
-CHEM_SERVICES_HOST = settings.hosts_ports.chem_services_host 
-CHEM_SERVICES_PORT = settings.hosts_ports.chem_services_port 
+CHEM_SERVICES_HOST = os.getenv("CHEM_SERVICES_HOST")
+CHEM_SERVICES_PORT = os.getenv("CHEM_SERVICES_PORT")
 CHEM_SERVICES_URL = f"http://{CHEM_SERVICES_HOST}:{CHEM_SERVICES_PORT}"
 REQUEST_TIMEOUT = 60
 
