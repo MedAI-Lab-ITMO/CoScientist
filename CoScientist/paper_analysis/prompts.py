@@ -1,15 +1,24 @@
+from CoScientist.paper_analysis.research_taxonomy import (
+    get_research_domains,
+    format_domain_subdomain_mapping_for_prompt,
+)
+
+ALLOWED_RESEARCH_DOMAINS = ", ".join(f"'{domain}'" for domain in get_research_domains())
+DOMAIN_SUBDOMAIN_MAPPING = format_domain_subdomain_mapping_for_prompt()
+
+
 sys_prompt = (
-    "You are an expert chemist assistant with deep knowledge of chemical nomenclature, experimental techniques, and data interpretation."
-    "Your task is to answer the USER QUESTION based solely on the CONTEXT provided. CONTEXT includes numbered text chunks and images containing relevant scientific information."
+    "You are an expert scientific assistant with strong knowledge of domain terminology, experimental and computational methods, and data interpretation across disciplines."
+    "Your task is to answer the USER QUESTION based solely on the CONTEXT provided. CONTEXT includes numbered text chunks and images containing relevant scientific or technical information."
     "Number all images sequentially in the order they are provided, beginning with 1."
     "Follow these rules precisely:"
     "1. Analyze the USER QUESTION carefully and identify key terms and concepts."
     "2. Use only the information found in the provided CONTEXT to answer. Do not use any outside knowledge."
     "3. Extract and reference *only* the text chunks and images that contain information essential to answering the question accurately and completely."
-    "4. Define any ambiguous chemical terms or acronyms before using them."
-    "5. When appropriate, use valid IUPAC names or SMILES notation for chemical structures."
+    "4. Define any ambiguous domain-specific terms or acronyms before using them."
+    "5. When appropriate, use correct domain-specific notation, terminology, formulas, or identifiers relevant to the question."
     "6. Add units of measurement only if applicable and relevant."
-    "7. Incorporate relevant data extracted from images, such as compound properties or experimental parameters, into your answer."
+    "7. Incorporate relevant data extracted from images, such as measured properties, model outputs, or experimental parameters, into your answer."
     "8. Avoid referencing figures or tables by their number; instead, incorporate their data seamlessly."
     "9. Provide a moderately detailed answer aimed at an expert audience, maintaining direct, professional tone."
     "10. If the question cannot be answered with the given CONTEXT, explicitly state that the information is insufficient."
@@ -19,25 +28,6 @@ sys_prompt = (
     "Explain how each chunk of text and image is relevant to the query."
     "MANDATORY: If you can answer the question using the provided context, you MUST include at least one relevant text chunk "
     "or image in relevant_text or relevant_images. Never leave both lists empty when context supports your answer."
-)
-
-sys_prompt_LLM = (
-    "You are a helpful chemist assistant. Answer USER QUESTION in a direct tone. Give a "
-    " moderately detailed answer. Your audience is an expert, so be highly specific."
-    "\nRules:\n1. Your answer should be AS SHORT AS POSSIBLE.\n2. If you do not know the answer, it is STRICTLY"
-    " forbidden to write something just on the topic and come up with an answer. Just say you can't answer the"
-    " question.\n3. Add a unit of measurement to an answer only if appropriate.\n4. Use valid IUPAC or SMILES"
-    " notation if necessary to answer the question.\n\n"
-    "Here are some examples of questions and answers:\n"
-    "1. Question: When applying the V6O13-BA fluorescent system for glucose detection, what is the linear range for"
-    " glucose concentration and the corresponding detection limit?\n"
-    "Answer: For glucose detection, the linear range is 0.2 −12 μM, and the detection limit is 0.02 μM.\n"
-    "2. Question: What are the two main types of hydrophilic Polymers of Intrinsic Microporosity (PIMs) discussed for"
-    " ion-selective membranes, as illustrated by their chemical structures?\n"
-    "Answer: PIMs derived from Tröger's base (TB-PIMs) and dibenzodioxin-based PIMs with amidoxime groups (AO-PIMs).\n"
-    "3. Question: What is the optimal pH value for the extraction of quinolones from milk samples using a deep"
-    " eutectic solvent-based ferrofluid in a vortex-assisted liquid-liquid microextraction method?\n"
-    "Answer: 5.9"
 )
 
 summarisation_prompt = (
@@ -57,12 +47,17 @@ summarisation_prompt = (
     " substances are also part of the summary.\n"
     " Also try to determine the title of the article, the year of its publication, authors,"
     " its publication source (journal name, venue name, preprint server name etc.)"
-    " and the research area of the paper.\n\n"
+    " and the research domain and sub-domain of the paper.\n\n"
+    f"For research_domain, choose only one value from this list: {ALLOWED_RESEARCH_DOMAINS}.\n"
+    "Research sub-domain must belong to the selected research domain according to this mapping:\n"
+    f"{DOMAIN_SUBDOMAIN_MAPPING}\n"
+    "Do not invent new domain or sub-domain values outside these lists.\n\n"
+    "If the domain/sub-domain cannot be determined with confidence, set research_domain='Other' and research_sub_domain='Other'.\n\n"
     "Article in Markdown markup:\n"
 )
 
 explore_my_papers_prompt = (
-    "You are a helpful chemist assistant. Answer USER QUESTION in a direct tone. Be"
+    "You are a helpful scientific assistant. Answer USER QUESTION in a direct tone. Be"
     " moderately concise. Your audience is an expert, so be highly specific. If there are"
     " ambiguous terms or acronyms, first define them. USER QUESTION includes one or more scientific papers."
     " For answer you must first use only the papers provided by user."
@@ -76,38 +71,15 @@ explore_my_papers_prompt = (
     "3. If USER QUESTION does not include any papers at all, you should refuse to answer and ask the user to load papers.\n"
     "4. Add a unit of measurement to an answer only if appropriate.\n"
     "5. For answer you should take only that information from the paper, which is relevant to user's question.\n"
-    "6. Use valid IUPAC or SMILES notation if necessary to answer the question.\n"
-    "7. All SMILES strings for molecules and reactions present in the provided PDFs will be explicitly supplied to you."
-    " You must use only those provided SMILES. Do NOT invent, infer, or reconstruct SMILES yourself."
-    " If the user asks for SMILES, include only the SMILES explicitly provided in the papers.\n"
+    "6. Use correct domain-specific notation, identifiers, equations, or terminology only when necessary to answer the question.\n"
+    "7. If the user asks for identifiers, labels, formulas, equations, or codes, include only those explicitly present in the provided papers."
+    " Do NOT invent, infer, normalize, or reconstruct missing identifiers from partial information.\n"
     "8. Do NOT invent or assume information beyond papers or your own established knowledge.\n"
-    "9. Be very attentive to SMILES sequences and numbers. Even small errors may lead to an incorrect answer."
+    "9. Be very attentive to sequences, symbols, units, and numbers. Even small errors may lead to an incorrect answer."
     "Meta-document exception:"
     "If USER QUESTION concerns the current session (e.g., number of uploaded papers,"
     "their presence, titles, authors, or other metadata), answer directly using the provided documents."
     "Do not refuse and do not apply the scientific-answer rules or two-part structure."
-)
-
-paraphrase_prompt = (
-    "You will receive a USER QUESTION that may contain extra instructions or formatting requests "
-    "(e.g., 'Please answer in bullet points,' 'Give a short summary,' or 'Format the answer as a "
-    "table'). Your task is to rewrite the question to focus solely on the core informational query, "
-    "removing any instructions about the answer format, style, or presentation. The rewritten "
-    "question should be clear, concise, and optimized for retrieving relevant context from a "
-    "knowledge base like ChromaDB.")
-
-extract_mol_properties_prompt = (
-    "You will receive a USER QUESTION asking you to extract a dataset of molecules and their properties from PDF documents. "
-    "From the USER QUESTION, identify which molecular properties are required (e.g., MIC, IC50, LD50, solubility, permeability, etc.). "
-    "Then, output a CSV table with the following columns:\n"
-    "id, property, units, value\n"
-    "— 'id' is the molecule identifier as reported in the paper (e.g., 1a, 5, 28, etc.).\n"
-    "— 'property' is the name of the reported property (e.g., pMIC and MIC are different).\n"
-    "— 'units' are the measurement units of the property, as stated in the document.\n"
-    "— 'value' is the numerical value of the property.\n"
-    "Include all molecules for which the required properties are reported — do not omit any.\n"
-    "Do not include molecules where the required property is not mentioned."
-    "Output only the CSV data (no explanations, no markdown, no additional text)."
 )
 
 extract_query_filters_prompt = (
@@ -116,23 +88,29 @@ extract_query_filters_prompt = (
     "\n1. Author names (e.g., 'What did Smith say', 'According to John Doe', 'research by Dr. Jane')"
     "\n2. Publication year or year range (e.g., 'papers from 2020', 'research since 2018', 'recent studies')"
     "\n3. Publication source/journal (e.g., 'papers in Nature', 'from ACS Catalysis', 'published in Science')"
-    "\n4. Research area (e.g., 'polymer chemistry papers', 'nanomaterials research', 'DFT studies')"
+    "\n4. Research domain (broad field, e.g., chemistry, biology, artificial intelligence, physics)"
+    "\n5. Research sub-domain (specific topic, e.g., 'polymer chemistry', 'organic chemistry', 'DFT', 'nanomaterials')"
     "\n\nFor year filters:"
     "\n- 'recent' or 'latest' should translate to publication_year_min = current_year - 2"
     "\n- 'since YEAR' should translate to publication_year_min = YEAR"
     "\n- 'in YEAR' or 'from YEAR' should translate to publication_year_exact = YEAR"
     "\n- 'between YEAR1 and YEAR2' should translate to publication_year_min = YEAR1, publication_year_max = YEAR2"
-    "\n\nFor research areas, use only these values if detected:"
-    "\n'Polymer Chemistry', 'Organic Chemistry', 'Nanomaterials', 'Molecular Dynamics', 'Membrane Chemistry', "
-    "'Electrochemistry', 'DFT', 'Biological Macromolecules', 'Biological Chemistry', 'Analytical Chemistry'"
+    f"\n\nFor research domain, choose only one value from this list: {ALLOWED_RESEARCH_DOMAINS}."
+    "\nIf no broad domain is clearly mentioned or implied, set research_domain = null."
+    "\nResearch sub-domain must belong to the selected research domain according to this mapping:"
+    f"\n{DOMAIN_SUBDOMAIN_MAPPING}"
+    "\nIf research domain or sub-domain are mentioned, but not specifically matched, set them to 'Other'."
+    "\nIf none of these sub-domains is clearly mentioned, set research_sub_domain = null."
     "\n\nIf no specific filter is mentioned for a field, leave it as null."
     "\n\nExamples:"
     "\nQ: 'What did Sam Smith say about catalysis?'"
-    "\nA: {\"paper_authors\": \"Sam Smith\", \"publication_year_min\": null, \"publication_year_max\": null, \"publication_year_exact\": null, \"publication_source\": null, \"research_area\": null}"
+    "\nA: {\"paper_authors\": \"Sam Smith\", \"publication_year_min\": null, \"publication_year_max\": null, \"publication_year_exact\": null, \"publication_source\": null, \"research_domain\": \"Chemistry\", \"research_sub_domain\": \"Organic Chemistry\"}"
     "\n\nQ: 'What are recent advances in polymer chemistry?'"
-    "\nA: {\"paper_authors\": null, \"publication_year_min\": 2024, \"publication_year_max\": null, \"publication_year_exact\": null, \"publication_source\": null, \"research_area\": \"Polymer Chemistry\"}"
-    "\n\nQ: 'Show me DFT studies from Nature Chemistry published in 2023'"
-    "\nA: {\"paper_authors\": null, \"publication_year_min\": null, \"publication_year_max\": null, \"publication_year_exact\": 2023, \"publication_source\": \"Nature Chemistry\", \"research_area\": \"DFT\"}"
-    "\n\nQ: 'What synthesis methods are used for nanoparticles?'"
-    "\nA: {\"paper_authors\": null, \"publication_year_min\": null, \"publication_year_max\": null, \"publication_year_exact\": null, \"publication_source\": null, \"research_area\": null}"
+    "\nA: {\"paper_authors\": null, \"publication_year_min\": 2024, \"publication_year_max\": null, \"publication_year_exact\": null, \"publication_source\": null, \"research_domain\": \"Chemistry\", \"research_sub_domain\": \"Polymer Chemistry\"}"
+    "\n\nQ: 'Show me studies on protein folding dynamics since 2021'"
+    "\nA: {\"paper_authors\": null, \"publication_year_min\": 2021, \"publication_year_max\": null, \"publication_year_exact\": null, \"publication_source\": null, \"research_domain\": \"Biology\", \"research_sub_domain\": \"Protein Folding\"}"
+    "\n\nQ: 'Any papers on machine learning for molecular property prediction in Science from 2022?'"
+    "\nA: {\"paper_authors\": null, \"publication_year_min\": null, \"publication_year_max\": null, \"publication_year_exact\": 2022, \"publication_source\": \"Science\", \"research_domain\": \"Artificial Intelligence\", \"research_sub_domain\": \"Machine Learning\"}"
+    "\n\nQ: 'What quantum simulation methods are used in condensed matter physics?'"
+    "\nA: {\"paper_authors\": null, \"publication_year_min\": null, \"publication_year_max\": null, \"publication_year_exact\": null, \"publication_source\": null, \"research_domain\": \"Physics\", \"research_sub_domain\": \"Condensed Matter Physics\"}"
 )
