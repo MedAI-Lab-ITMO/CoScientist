@@ -1,17 +1,22 @@
+import asyncio
 import base64
 import os
 import time
 import pikepdf
 
-from langchain_core.messages import SystemMessage
+from langchain_core.messages import SystemMessage, HumanMessage
 from protollm.connectors import create_llm_connector
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from pypdf import PdfReader, PdfWriter
 from io import BytesIO
 
 from CoScientist.paper_analysis.chroma_db_operations import ChromaDBPaperStore
-from CoScientist.paper_analysis.constants import ResearchArea
 from CoScientist.paper_analysis.prompts import sys_prompt, explore_my_papers_prompt, extract_query_filters_prompt
+from CoScientist.paper_analysis.research_taxonomy import (
+    DOMAIN_TO_SUBDOMAINS,
+    ResearchDomain,
+    get_sub_domains_for_domain,
+)
 from CoScientist.paper_analysis.settings import allowed_providers
 from CoScientist.paper_parser.utils import convert_to_base64, prompt_func, load_image_as_binary
 from CoScientist.chemical_utils.chemical_functions import *
@@ -19,7 +24,7 @@ from CoScientist.chemical_utils.chemical_functions import *
 from dotenv import load_dotenv, find_dotenv
 load_dotenv(find_dotenv())
 
-VISION_LLM_URL = os.getenv("VISION_LLM_URL")
+VISION_LLM_URL = os.getenv("LLM__VISION_URL")
 
 
 class QueryFilters(BaseModel):
@@ -44,10 +49,31 @@ class QueryFilters(BaseModel):
         description="Journal or publication source name",
         default=None
     )
-    research_area: ResearchArea | None = Field(
-        description="Research area/field of chemistry",
+    research_domain: ResearchDomain | None = Field(
+        description="Broad research domain",
         default=None
     )
+    research_sub_domain: str | None = Field(
+        description="Specific research sub-domain within the selected research domain"
+        " Must match the selected research_domain based on this mapping:\n"
+        f"{DOMAIN_TO_SUBDOMAINS}\n",
+        default=None
+    )
+
+    @model_validator(mode="after")
+    def validate_domain_sub_domain_pair(self):
+        if not self.research_sub_domain:
+            return self
+
+        if not self.research_domain:
+            raise ValueError("research_domain must be set when research_sub_domain is provided")
+
+        allowed_sub_domains = get_sub_domains_for_domain(self.research_domain)
+        if self.research_sub_domain not in allowed_sub_domains:
+            raise ValueError(
+                "research_sub_domain must belong to selected research_domain"
+            )
+        return self
 
 
 def extract_metadata_filters(question: str) -> QueryFilters:
@@ -58,7 +84,7 @@ def extract_metadata_filters(question: str) -> QueryFilters:
         question: The user's question string
         
     Returns:
-        QueryFilters: Structured filters including authors, year, source, and research area
+        QueryFilters: Structured filters including authors, years, source, domain, and sub-domain
     """
     llm = create_llm_connector(
         VISION_LLM_URL,
@@ -70,9 +96,7 @@ def extract_metadata_filters(question: str) -> QueryFilters:
     
     prompt = extract_query_filters_prompt + f"\n\nUSER QUESTION: {question}"
     
-    from langchain_core.messages import HumanMessage
     filters: QueryFilters = struct_llm.invoke([HumanMessage(content=prompt)])
-    
     return filters
 
 
@@ -97,32 +121,34 @@ def build_chroma_where_filter(filters: QueryFilters) -> dict | None:
     """
     conditions = []
     
-    if filters.paper_authors:
+    if filters.paper_authors is not None:
         conditions.append({"paper_authors": {"$eq": filters.paper_authors}})
     
-    if filters.publication_year_exact:
+    if filters.publication_year_exact is not None:
         conditions.append({"publication_year": {"$eq": filters.publication_year_exact}})
-    elif filters.publication_year_min or filters.publication_year_max:
+    elif filters.publication_year_min is not None or filters.publication_year_max is not None:
         year_condition = {}
-        if filters.publication_year_min:
+        if filters.publication_year_min is not None:
             year_condition["$gte"] = filters.publication_year_min
-        if filters.publication_year_max:
+        if filters.publication_year_max is not None:
             year_condition["$lte"] = filters.publication_year_max
         if year_condition:
             conditions.append({"publication_year": year_condition})
     
-    if filters.publication_source:
+    if filters.publication_source is not None:
         conditions.append({"publication_source": {"$eq": filters.publication_source}})
     
-    if filters.research_area and filters.research_area != "OTHER":
-        conditions.append({"research_area": {"$eq": filters.research_area}})
+    if filters.research_domain is not None:
+        conditions.append({"research_domain": {"$eq": filters.research_domain}})
+    
+    if filters.research_sub_domain is not None:
+        conditions.append({"research_sub_domain": {"$eq": filters.research_sub_domain}})
     
     if not conditions:
         return None
     
     if len(conditions) == 1:
         return conditions[0]
-    
     return {"$and": conditions}
 
 
@@ -201,10 +227,7 @@ def simple_query_llm(
         dict: A dictionary containing the answer from the language model. The dictionary has a single key, 'answer',
             which holds the answer string.
     """
-    from ChemCoScientist.frontend.utils import update_activity
 
-    if pdfs:
-        update_activity(os.path.dirname(pdfs[0]))
     llm = create_llm_connector(model_url)
 
     content = []
@@ -291,27 +314,23 @@ def process_question(
             + chunk[1].replace("passage: ", "")
             + "\n\n"
         )
-    # Add molecules and reactions data to text context
-    # for img in img_data["metadatas"][0]:
-    #     # img_paths.add(img["image_path"])
-    #     molecules_reactions_metadata = {
-    #         "molecules": img["molecules"],
-    #         "reactions": img["reactions"]
-    #     }
-    # txt_context += f"Molecules and reactions data: {molecules_reactions_metadata}\n\n"
-
-    # Combine images for context (from chunk text and from DB)
+    
+    # Combine images for context (from chunk text and fom DB)
     for chunk_meta in [chunk[2] for chunk in txt_data]:
         for img_path in eval(chunk_meta["imgs_in_chunk"]):
-            # img = store.get_image_data(img_path)
             img_paths.append({
                 'path': img_path,
                 'Source': chunk_meta['source'],
                 'Paper': chunk_meta['title'],
-                'Year': chunk_meta['year'],
-                # 'Molecules': img['molecules'],
-                # 'Reactions': img['reactions']
+                'Year': chunk_meta['year']
             })
+            if meta_filter.research_domain == ResearchDomain.CHEMISTRY:
+                img = store.get_image_data_for_chem(img_path)
+                img_paths.append({
+                    'Molecules': img['molecules'],
+                    'Reactions': img['reactions']
+                })
+    
     for img_meta in img_data["metadatas"][0]:
         if img_meta['image_path'] not in [d['path'] for d in img_paths]:
             img_paths.append({
@@ -319,9 +338,13 @@ def process_question(
                 'source': img_meta['source'],
                 'Paper': img_meta['title'],
                 'Year': img_meta['year'],
-                # 'Molecules': img_meta['molecules'],
-                # 'Reactions': img_meta['reactions']
             })
+            if meta_filter.research_domain == ResearchDomain.CHEMISTRY:
+                img = store.get_image_data_for_chem(img_meta['image_path'])
+                img_paths.append({
+                    'Molecules': img['molecules'],
+                    'Reactions': img['reactions']
+                })
     img_paths_list = [d['path'] for d in img_paths]
 
     ans = query_llm(VISION_LLM_URL, question, system_prompt, txt_context, list(img_paths_list))
@@ -401,6 +424,6 @@ if __name__ == "__main__":
     # question = 'How does the synthesis of Glionitrin A/B happen?'
 
     # res = simple_query_llm(VISION_LLM_URL, question, [paper])
-    result = process_question(question, paper_store)
+    result = process_question(question, sys_prompt, paper_store)
     from pprint import pprint
     pprint(result)

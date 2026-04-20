@@ -12,12 +12,16 @@ from chromadb.utils.data_loaders import ImageLoader
 from langchain_core.documents.base import Document
 from langchain_core.messages import HumanMessage
 from protollm.connectors import create_llm_connector
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 import requests
 
 from CoScientist.chemical_utils.chemical_functions import extract_molecules_from_figure, extract_reactions_from_figure
-from CoScientist.paper_analysis.constants import ResearchArea
 from CoScientist.paper_analysis.prompts import summarisation_prompt
+from CoScientist.paper_analysis.research_taxonomy import (
+    ResearchDomain,
+    format_domain_subdomain_mapping_for_prompt,
+    get_sub_domains_for_domain,
+)
 from CoScientist.paper_analysis.settings import allowed_providers
 from CoScientist.paper_analysis.settings import settings as default_settings
 from CoScientist.paper_parser.utils import load_image_as_binary
@@ -26,12 +30,14 @@ from dotenv import load_dotenv, find_dotenv
 load_dotenv(find_dotenv())
 
 DATA_LOADER = ImageLoader()
-ROOT_DIR = os.getenv("ROOT_DIR")
-CHROMA_DB_PATH = os.path.join(ROOT_DIR, os.getenv("CHROMA_STORAGE_PATH"))
-VISION_LLM_URL = os.getenv("VISION_LLM_URL")
+CHROMA_DB_PATH = os.getenv("STORAGE__CHROMA_STORAGE")
+
+VISION_LLM_URL = os.getenv("LLM__VISION_URL")
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+DOMAIN_SUBDOMAIN_MAPPING = format_domain_subdomain_mapping_for_prompt()
 
 
 class ExpandedSummary(BaseModel):
@@ -52,10 +58,25 @@ class ExpandedSummary(BaseModel):
     publication_source: str = Field(
         description="Source where the paper was published. If the source is not explicitly specified, use the default value - 'NO SOURCE'"
     )
-    research_area: ResearchArea = Field(
-        description="Area or field of chemistry the paper is about. Must be one of the predefined values."
-        " If the area has no match in the predefined list or is hard to determine, use the default value - 'OTHER'"
+    research_domain: ResearchDomain = Field(
+        description="Research domain of the paper. Must be one of the predefined values."
+        " If the area has no match in the predefined list or is hard to determine, use the default value - 'Other'"
     )
+    research_sub_domain: str = Field(
+        description="Research sub-domain of the paper. Should be one of the predefined sub-domains corresponding to the research domain."
+        " Must match the selected research_domain based on this mapping:\n"
+        f"{DOMAIN_SUBDOMAIN_MAPPING}\n"
+        " If the sub-domain has no match in the predefined list or is hard to determine, use the default value - 'Other'"
+    )
+
+    @model_validator(mode="after")
+    def validate_domain_sub_domain_pair(self):
+        allowed_sub_domains = get_sub_domains_for_domain(self.research_domain)
+        if self.research_sub_domain not in allowed_sub_domains:
+            raise ValueError(
+                "research_sub_domain must belong to selected research_domain"
+            )
+        return self
 
 
 class CustomEmbeddingFunction(EmbeddingFunction):
@@ -259,9 +280,9 @@ class ChromaDBPaperStore:
 
         self.client = ChromaClient()
 
-        self.sum_collection_name = sum_collection_name or os.getenv("SUMMARIES_COLLECTION_NAME")
-        self.txt_collection_name = txt_collection_name or os.getenv("TEXTS_COLLECTION_NAME")
-        self.img_collection_name = img_collection_name or os.getenv("IMAGES_COLLECTION_NAME")
+        self.sum_collection_name = sum_collection_name or os.getenv("COLLECTIONS__SUMMARIES")
+        self.txt_collection_name = txt_collection_name or os.getenv("COLLECTIONS__TEXTS")
+        self.img_collection_name = img_collection_name or os.getenv("COLLECTIONS__IMAGES")
 
         self.sum_chunk_num = 15
         self.final_sum_chunk_num = 3
@@ -488,15 +509,7 @@ class ChromaDBPaperStore:
             {"source": {"$in": list(relevant_papers.keys())}},
             self.img_chunk_num,
         )
-        # Get SMILES for molecules and reactions
-        # for img in image_context["metadatas"][0]:
-        #     self.get_molecule_and_reactions_data(img)
-        #
-        # self.client.update_chroma_collection(
-        #     self.img_collection,
-        #     image_context["ids"][0],
-        #     image_context["metadatas"][0]
-        # )
+
         text_context = self.search_with_reranker(query, raw_text_context, top_k=5)
 
         # Add title and year to metadata
@@ -516,15 +529,18 @@ class ChromaDBPaperStore:
             img["molecules"] = str(extract_molecules_from_figure(image_bytes))
             img["reactions"] = str(extract_reactions_from_figure(image_bytes))
 
-    def get_image_data(self, file_path: str) -> dict:
+    def get_image_data_for_chem(self, file_path: str) -> dict:
         image_data = self.client.query_chromadb(
             self.img_collection,
             "",
             {"image_path": file_path}
         )
         img = image_data["metadatas"][0][0]
-        self.get_molecule_and_reactions_data(img)
-        # TODO: add data to DB
+        img_id = image_data["ids"][0][0]
+
+        if "molecules" not in img or "reactions" not in img:
+            self.get_molecule_and_reactions_data(img)
+            self.img_collection.update(ids=[img_id], metadatas=[img])
         return img
     
     def search_with_reranker(
@@ -598,7 +614,8 @@ class ChromaDBPaperStore:
                 "publication_year": expanded_summary.publication_year,
                 "paper_authors": expanded_summary.paper_authors,
                 "publication_source": expanded_summary.publication_source,
-                "research_area": expanded_summary.research_area
+                "research_domain": expanded_summary.research_domain,
+                "research_sub_domain": expanded_summary.research_sub_domain,
             }
         )
         embedding = self.get_embeddings([doc.page_content])
