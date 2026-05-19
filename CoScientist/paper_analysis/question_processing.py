@@ -6,7 +6,7 @@ import pikepdf
 
 from langchain_core.messages import SystemMessage, HumanMessage
 from protollm.connectors import create_llm_connector
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from pypdf import PdfReader, PdfWriter
 from io import BytesIO
 
@@ -20,6 +20,7 @@ from CoScientist.paper_analysis.research_taxonomy import (
 from CoScientist.paper_analysis.settings import allowed_providers
 from CoScientist.paper_parser.utils import convert_to_base64, prompt_func, load_image_as_binary
 from CoScientist.chemical_utils.chemical_functions import *
+from CoScientist.paper_analysis.domain_metadata import format_domain_metadata, add_domain_metadata_to_img_info
 
 from dotenv import load_dotenv, find_dotenv
 load_dotenv(find_dotenv())
@@ -29,8 +30,8 @@ VISION_LLM_URL = os.getenv("LLM__VISION_URL")
 
 class QueryFilters(BaseModel):
     """Metadata filters extracted from user question."""
-    paper_authors: str | None = Field(
-        description="Author name(s) mentioned in the question",
+    paper_authors: list[str] | None = Field(
+        description="Author names mentioned in the question",
         default=None
     )
     publication_year_min: int | None = Field(
@@ -49,16 +50,24 @@ class QueryFilters(BaseModel):
         description="Journal or publication source name",
         default=None
     )
-    research_domain: ResearchDomain | None = Field(
-        description="Broad research domain",
+    research_domain: list[ResearchDomain] | None = Field(
+        description="Broad research domains",
         default=None
     )
-    research_sub_domain: str | None = Field(
-        description="Specific research sub-domain within the selected research domain"
+    research_sub_domain: list[str] | None = Field(
+        description="Specific research sub-domains within the selected research domains"
         " Must match the selected research_domain based on this mapping:\n"
         f"{DOMAIN_TO_SUBDOMAINS}\n",
         default=None
     )
+
+    @field_validator("paper_authors", "research_domain", "research_sub_domain", mode="before")
+    def normalize_list_fields(cls, v):
+        if v is None:
+            return None
+        if isinstance(v, list):
+            return v
+        return [v]
 
     @model_validator(mode="after")
     def validate_domain_sub_domain_pair(self):
@@ -68,10 +77,14 @@ class QueryFilters(BaseModel):
         if not self.research_domain:
             raise ValueError("research_domain must be set when research_sub_domain is provided")
 
-        allowed_sub_domains = get_sub_domains_for_domain(self.research_domain)
-        if self.research_sub_domain not in allowed_sub_domains:
+        allowed_sub_domains = []
+        for domain in self.research_domain:
+            allowed_sub_domains.extend(get_sub_domains_for_domain(domain))
+
+        invalid_sub_domains = [sd for sd in self.research_sub_domain if sd not in allowed_sub_domains]
+        if invalid_sub_domains:
             raise ValueError(
-                "research_sub_domain must belong to selected research_domain"
+                "research_sub_domain must belong to one of the selected research_domain values"
             )
         return self
 
@@ -86,18 +99,34 @@ def extract_metadata_filters(question: str) -> QueryFilters:
     Returns:
         QueryFilters: Structured filters including authors, years, source, domain, and sub-domain
     """
-    llm = create_llm_connector(
-        VISION_LLM_URL,
-        extra_body={"provider": {"only": allowed_providers}},
-        temperature=0.0
-    )
+    max_retries = 3
     
-    struct_llm = llm.with_structured_output(schema=QueryFilters)
+    for attempt in range(max_retries):
+        try:
+            llm = create_llm_connector(
+                VISION_LLM_URL,
+                extra_body={"provider": {"only": allowed_providers}},
+                temperature=0.1
+            )
+            
+            struct_llm = llm.with_structured_output(schema=QueryFilters)
+            
+            prompt = extract_query_filters_prompt + f"\n\nUSER QUESTION: {question}"
+            
+            filters: QueryFilters = struct_llm.invoke([HumanMessage(content=prompt)])
+            return filters
+        except Exception as e:
+            print(f"Error extracting metadata filters (attempt {attempt + 1}/{max_retries}): {str(e)}")
+            if attempt < max_retries - 1:
+                wait_time = 1.5 ** attempt
+                print(f"Retrying in {wait_time}s...")
+                time.sleep(wait_time)
+            else:
+                print(f"Failed to extract metadata filters for question: {question}")
+                # Return empty QueryFilters on final error to allow pipeline to continue
+                return QueryFilters()
     
-    prompt = extract_query_filters_prompt + f"\n\nUSER QUESTION: {question}"
-    
-    filters: QueryFilters = struct_llm.invoke([HumanMessage(content=prompt)])
-    return filters
+    return QueryFilters()
 
 
 def build_chroma_where_filter(filters: QueryFilters) -> dict | None:
@@ -111,10 +140,10 @@ def build_chroma_where_filter(filters: QueryFilters) -> dict | None:
         dict: ChromaDB where clause ready for collection.query(), or None if no filters
         
     Example output:
-        {"paper_authors": {"$eq": "Smith"}}
+        {"paper_authors": {"$in": ["Smith"]}}
         {
             "$and": [
-                {"paper_authors": {"$eq": "Smith"}},
+                {"paper_authors": {"$in": ["Smith"]}},
                 {"publication_year": {"$gte": 2020}}
             ]
         }
@@ -122,7 +151,7 @@ def build_chroma_where_filter(filters: QueryFilters) -> dict | None:
     conditions = []
     
     if filters.paper_authors is not None:
-        conditions.append({"paper_authors": {"$eq": filters.paper_authors}})
+        conditions.append({"paper_authors": {"$in": filters.paper_authors}})
     
     if filters.publication_year_exact is not None:
         conditions.append({"publication_year": {"$eq": filters.publication_year_exact}})
@@ -139,10 +168,10 @@ def build_chroma_where_filter(filters: QueryFilters) -> dict | None:
         conditions.append({"publication_source": {"$eq": filters.publication_source}})
     
     if filters.research_domain is not None:
-        conditions.append({"research_domain": {"$eq": filters.research_domain}})
+        conditions.append({"research_domain": {"$in": filters.research_domain}})
     
     if filters.research_sub_domain is not None:
-        conditions.append({"research_sub_domain": {"$eq": filters.research_sub_domain}})
+        conditions.append({"research_sub_domain": {"$in": filters.research_sub_domain}})
     
     if not conditions:
         return None
@@ -188,7 +217,7 @@ def query_llm(
 
     img_context = list(map(convert_to_base64, img_paths))
     messages = [
-        SystemMessage(content=sys_prompt),
+        SystemMessage(content=system_prompt),
         prompt_func(
             {
                 "text": f"USER QUESTION: {question}\n\nCONTEXT: {txt_context}",
@@ -197,16 +226,32 @@ def query_llm(
         ),
     ]
 
-    res = structured_llm.invoke(messages)
-    content = {
-        'answer': res.answer,
-        'explanation': res.explanation,
-        'chunk_explanation': res.chunk_explanation,
-        'img_explanation': res.img_explanation,
-        'relevant_text': res.relevant_text,
-        'relevant_images': res.relevant_images
-    }
-    return content
+    for attempt in range(3):
+        try:
+            res = structured_llm.invoke(messages)
+            content = {
+                'answer': res.answer,
+                'explanation': res.explanation,
+                'chunk_explanation': res.chunk_explanation,
+                'img_explanation': res.img_explanation,
+                'relevant_text': res.relevant_text,
+                'relevant_images': res.relevant_images
+            }
+            return content
+        except Exception as e:
+            last_error = e
+            messages.append(
+                    HumanMessage(
+                        content="Previous response was invalid JSON. Respond with ONLY valid JSON."
+                    )
+                )
+            continue
+    
+    raise RuntimeError(
+        f"Failed to get valid structured response after 3 attempts. "
+        f"Last error: {last_error}"
+    ) from last_error
+
 
 
 def simple_query_llm(
@@ -318,34 +363,47 @@ def process_question(
     # Combine images for context (from chunk text and fom DB)
     for chunk_meta in [chunk[2] for chunk in txt_data]:
         for img_path in eval(chunk_meta["imgs_in_chunk"]):
-            img_paths.append({
+
+            img_info = {
                 'path': img_path,
                 'Source': chunk_meta['source'],
                 'Paper': chunk_meta['title'],
                 'Year': chunk_meta['year']
-            })
-            if meta_filter.research_domain == ResearchDomain.CHEMISTRY:
-                img = store.get_image_data_for_chem(img_path)
-                img_paths.append({
-                    'Molecules': img['molecules'],
-                    'Reactions': img['reactions']
-                })
+            }
+
+            image_data = store.client.query_chromadb(
+                    store.img_collection,
+                    "",
+                    {"image_path": img_path}
+                )
+            img_meta = image_data["metadatas"][0][0]
+            img_info = add_domain_metadata_to_img_info(meta_filter.research_domain, img_meta, img_info)
+            img_paths.append(img_info)
     
     for img_meta in img_data["metadatas"][0]:
         if img_meta['image_path'] not in [d['path'] for d in img_paths]:
-            img_paths.append({
+            img_info = {
                 'path': img_meta['image_path'],
-                'source': img_meta['source'],
-                'Paper': img_meta['title'],
-                'Year': img_meta['year'],
-            })
-            if meta_filter.research_domain == ResearchDomain.CHEMISTRY:
-                img = store.get_image_data_for_chem(img_meta['image_path'])
-                img_paths.append({
-                    'Molecules': img['molecules'],
-                    'Reactions': img['reactions']
-                })
-    img_paths_list = [d['path'] for d in img_paths]
+                'Source': chunk_meta['source'],
+                'Paper': chunk_meta['title'],
+                'Year': chunk_meta['year']
+            }
+            image_data = store.client.query_chromadb(
+                    store.img_collection,
+                    "",
+                    {"image_path": img_meta['image_path']}
+                )
+            img_meta = image_data["metadatas"][0][0]
+            img_info = add_domain_metadata_to_img_info(meta_filter.research_domain, img_meta, img_info)
+            img_paths.append(img_info)
+
+    img_paths_list = set([d['path'] for d in img_paths])
+    
+    domain_metadata = format_domain_metadata(meta_filter.research_domain, img_paths)
+    if domain_metadata != "":
+        txt_context += f"Domain metadata\n{domain_metadata}\n\n"
+    else:
+        txt_context += "No domain metadata found for context."
 
     ans = query_llm(VISION_LLM_URL, question, system_prompt, txt_context, list(img_paths_list))
 
@@ -418,8 +476,8 @@ if __name__ == "__main__":
     #######################################################
 
     paper_store = ChromaDBPaperStore()
-    question = 'What are papers since 2023 about analytical chemistry are focused on?'
-      # question = 'What components are involved in the synthesis of BASHY dyes, and what are the uses of these dyes?'
+    # question = 'What aliphatic hydroxy acids are present in the papers published in 2022? Give me their SMILES.'
+    question = 'What components are involved in the synthesis of BASHY dyes, and what are the uses of these dyes?'
     # question = 'What IC50 values do weakly active and highly active Bruton\'s tyrosine kinase inhibitors have?'
     # question = 'How does the synthesis of Glionitrin A/B happen?'
 
