@@ -14,10 +14,24 @@ from google.adk.tools.mcp_tool.mcp_session_manager import StreamableHTTPConnecti
 
 
 settings = get_settings()
+PAPER_ANALYSIS_URL = settings.mcp.paper_analysis_url
+PAPERS_SEARCH_URL = settings.mcp.papers_search_url
 
 websearch_toolset_instance = McpToolset(
     connection_params=StreamableHTTPConnectionParams(
         url=f"https://mcp.tavily.com/mcp/?tavilyApiKey={settings.services.tavily_api_key}"
+    ),
+)
+
+paper_analysis_toolset_instance = McpToolset(
+    connection_params=StreamableHTTPConnectionParams(
+        url=PAPER_ANALYSIS_URL
+    ),
+)
+
+papers_search_toolset_instance = McpToolset(
+    connection_params=StreamableHTTPConnectionParams(
+        url=PAPERS_SEARCH_URL
     ),
 )
 
