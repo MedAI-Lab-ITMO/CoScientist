@@ -191,3 +191,7 @@ ChemCoScientist/tests/integration/data/.last_activity
 
 roadmap.txt
 workspace/
+# Execution-graph run snapshots
+graph_runs/
+openhands.log
+task_tracker_data.json

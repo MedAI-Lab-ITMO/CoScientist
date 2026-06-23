@@ -37,6 +37,12 @@ _CFG = settings.code_exec
 _LOCAL_JOBS: Dict[str, Dict[str, Any]] = {}
 _MAX_LOCAL_JOBS = 500  # cap registry size; evict oldest finished jobs past this
 
+# Session-state key pinning the per-ADK-session sandbox workspace. Shared with
+# the orchestrator's seed callback (seed_coder_workspace) so every CoderAgent
+# delegation in one ADK session — and any sub-agent that uses this toolset —
+# lands in the SAME sandbox, across user messages.
+_WORKSPACE_STATE_KEY = "coder_workspace_id"
+
 
 def _evict_finished_jobs() -> None:
     """Drop oldest finished job records so _LOCAL_JOBS doesn't grow unbounded.
@@ -144,29 +150,39 @@ class CoderToolset(BaseToolset):
 
     @staticmethod
     def _workspace_id(tool_context: Optional[ToolContext]) -> str:
-        """Stable per-session workspace id, shared by ALL tool calls in a session.
+        """One sandbox workspace per ADK session, reused by ALL tool calls.
 
-        Anchored to the session id so the same sandbox is reused across every
-        execute_bash / file / check_job call — and across repeated CoderAgent
-        invocations within one session (e.g. a critic-driven REFINE retry). This
-        does NOT depend on a state write surviving between calls, which is what
-        previously let a clone and a later `list_directory` land in different
-        workspaces. Falls back to a cached/random id only when no session is
-        available (e.g. direct unit-test use).
+        Every CoderAgent delegation runs in its OWN ephemeral AgentTool
+        sub-session with a random session id, so anchoring on the session id
+        directly would spawn a fresh, empty workspace on every call (a clone in
+        one call, `cd repo` in the next → fails). Instead we pin the workspace
+        id in SESSION STATE: AgentTool copies the parent session state into each
+        sub-session and forwards state deltas back, so the id written on first
+        use is reused by every later CoderAgent call in the same top-level ADK
+        session — and persists across user messages (the session state is
+        persisted between messages).
+
+        Priority: an explicit CODER_WORKSPACE_ID pin (e.g. the A2A shared
+        workspace) wins; otherwise the state-pinned id; otherwise we mint one
+        (from the session id, else random) and store it. Read at call time so it
+        doesn't depend on import order.
         """
+        fixed = os.getenv("CODER_WORKSPACE_ID")
+        if fixed:
+            safe = re.sub(r"[^A-Za-z0-9_\-]", "", fixed)[:48] or "shared"
+            return f"ws_{safe}"
+
         if tool_context is None:
             return "default"
 
-        sid = CoderToolset._session_id(tool_context)
-        if sid:
-            safe = re.sub(r"[^A-Za-z0-9_\-]", "", sid)[:48] or "default"
-            return f"ws_{safe}"
+        existing = tool_context.state.get(_WORKSPACE_STATE_KEY)
+        if existing:
+            return existing
 
-        # No session available — keep a stable id within this context.
-        ws = tool_context.state.get("coder_workspace_id")
-        if not ws:
-            ws = f"ws_{uuid.uuid4().hex[:12]}"
-            tool_context.state["coder_workspace_id"] = ws
+        # First use in this session: mint a stable id and pin it in state.
+        seed = CoderToolset._session_id(tool_context) or uuid.uuid4().hex[:12]
+        ws = f"ws_{re.sub(r'[^A-Za-z0-9_-]', '', str(seed))[:48] or 'default'}"
+        tool_context.state[_WORKSPACE_STATE_KEY] = ws
         return ws
 
     def _local_workspace(self, tool_context: Optional[ToolContext]) -> Path:
@@ -234,14 +250,16 @@ class CoderToolset(BaseToolset):
         tool_context: ToolContext = None,
     ) -> Dict[str, Any]:
         """
-        Start a shell command in this session's isolated sandbox workspace.
+        Run a shell command in this session's isolated sandbox workspace and
+        return its result.
 
-        This is FIRE-AND-FORGET: the command is launched in the background and
-        this call returns immediately with a `job_id` and status "running". It
-        does NOT wait for the command to finish — so long jobs (a heavy
-        `git clone`, a build, a training run) never block you. Poll the job with
-        `check_job(job_id)` when you want its result. You may start several jobs
-        and let them run concurrently, then check each.
+        This WAITS for the command to finish and returns its stdout, stderr and
+        exit_code directly — for almost everything (git clone, pip install, a
+        script, data processing) you get the result in this single call and do
+        NOT need check_job. Only if the command is still running after an inline
+        wait (a genuinely long build or training run) does it return status
+        "running" with a `job_id`; call `check_job(job_id)` ONCE later for it —
+        never poll in a tight loop, that just wastes turns.
 
         Use this to run scripts, build and test code, run git commands (clone,
         commit, push), and process data.
@@ -260,8 +278,10 @@ class CoderToolset(BaseToolset):
                 (default: server's long-job timeout, ~30 min).
 
         Returns:
-            Dict with `job_id`, status ("running", or "blocked"/"denied" if the
-            command never started), workspace_id, and a hint to call check_job.
+            Dict with status ("success" | "error" | "timeout" | "blocked"),
+            stdout, stderr, exit_code, and workspace_id. For a long job that
+            outlives the inline wait: status "running" with a `job_id` to
+            check_job later.
         """
         blocked_by = _is_dangerous(command)
         if blocked_by:
@@ -282,18 +302,54 @@ class CoderToolset(BaseToolset):
         workspace_id = self._workspace_id(tool_context)
 
         if _CFG.url:
-            return await self._submit_remote(command, timeout, workspace_id)
-        return await self._submit_local(command, timeout, workspace_id, tool_context)
+            started = await self._submit_remote(command, timeout, workspace_id)
+        else:
+            started = await self._submit_local(command, timeout, workspace_id, tool_context)
+
+        job_id = started.get("job_id")
+        if not job_id or started.get("status") != "running":
+            return started  # blocked / denied / submit error — nothing to await
+
+        # Wait for the command INSIDE the tool (a Python poll loop, no LLM
+        # round-trips) so the common case returns its result in a single call.
+        # Only a job that outlives exec_wait comes back as "running" + job_id.
+        res = await self._await_job(job_id, _CFG.exec_wait)
+        if res.get("status") == "running":
+            res = dict(res)
+            res["job_id"] = job_id
+            res["message"] = (
+                f"Still running after {_CFG.exec_wait}s — this is a long job. "
+                f"Do other work and call check_job('{job_id}') once later; "
+                "do NOT poll it in a tight loop."
+            )
+        return res
+
+    async def _await_job(self, job_id: str, max_wait: float) -> Dict[str, Any]:
+        """Poll a job internally until it finishes or `max_wait` seconds elapse.
+
+        No LLM involvement — this is a Python loop. Returns the final result, or
+        the last "running" status if the job is still going when max_wait is hit.
+        """
+        elapsed = 0.0
+        interval = 0.25
+        while True:
+            res = await self._check_remote(job_id) if _CFG.url else self._check_local(job_id)
+            if res["status"] != "running" or elapsed >= max_wait:
+                return res
+            await asyncio.sleep(interval)
+            elapsed += interval
+            interval = min(interval * 1.5, 3.0)
 
     async def check_job(self, job_id: str, tool_context: ToolContext = None) -> Dict[str, Any]:
         """
-        Check the status and output of a job started by execute_bash.
+        Check a long job that execute_bash handed back as still "running".
 
-        Call this after execute_bash to get the command's result. It waits briefly
-        (a few seconds) for a still-running job to finish before returning, so you
-        usually get the final result in one call instead of polling repeatedly. If
-        the job is genuinely long and is still running when this returns, you'll
-        get status "running" — call check_job again to keep waiting.
+        You normally do NOT need this: execute_bash already waits for the command
+        and returns its result directly. Use check_job ONLY when execute_bash
+        returned status "running" with a job_id (a long build/training run). It
+        waits inline for the job to finish before returning; if it is still
+        running you get status "running" — call check_job again, but do not poll
+        in a tight loop.
 
         Args:
             job_id: The id returned by execute_bash.
@@ -302,18 +358,7 @@ class CoderToolset(BaseToolset):
             Dict with status ("running" | "success" | "error" | "timeout" |
             "blocked"), stdout, stderr, exit_code, and workspace_id.
         """
-        async def _poll() -> Dict[str, Any]:
-            return await self._check_remote(job_id) if _CFG.url else self._check_local(job_id)
-
-        elapsed = 0.0
-        interval = 0.25
-        while True:
-            res = await _poll()
-            if res["status"] != "running" or elapsed >= _CFG.check_wait:
-                return res
-            await asyncio.sleep(interval)
-            elapsed += interval
-            interval = min(interval * 1.5, 3.0)
+        return await self._await_job(job_id, _CFG.check_wait)
 
     # ── remote (code-exec server) ──────────────────────────────────────────────
 
@@ -634,9 +679,10 @@ class CoderToolset(BaseToolset):
         """
         Install a Python package with pip inside the session sandbox.
 
-        Like execute_bash this is fire-and-forget (installs can be slow): it
-        returns a `job_id`; call check_job(job_id) to see whether the install
-        finished. Installs may require human approval before starting.
+        Like execute_bash this WAITS for the install and returns its result
+        directly; only a very slow install outlives the inline wait and comes
+        back as status "running" with a `job_id` for check_job. Installs may
+        require human approval before starting.
 
         Args:
             package_name: Package name (e.g. "numpy" or "numpy==1.26.0"), or a
@@ -646,7 +692,9 @@ class CoderToolset(BaseToolset):
             upgrade: Pass --upgrade flag (default False).
 
         Returns:
-            Dict with `job_id` and status "running" (or "blocked"/"denied").
+            Dict with status ("success" | "error" | "timeout" | "blocked" |
+            "denied"), stdout, stderr and exit_code — or status "running" with
+            a `job_id` for a long install.
         """
         # Basic package name validation — reject shell injection attempts.
         # Note: ';' is intentionally NOT allowed (it would enable command
@@ -670,3 +718,30 @@ if settings.hitl.enabled:
 
 coder_toolset = CoderToolset(hitl_handler=_hitl_handler)
 coder_toolset_instance = coder_toolset.get_tools(None)
+
+
+def seed_coder_workspace(callback_context, llm_request=None):
+    """before_model callback (wired on the orchestrator): pin the coder sandbox
+    to THIS ADK session before any CoderAgent delegation.
+
+    The orchestrator's callback context carries the top-level (user) session id,
+    which is stable across the whole session and across user messages. Seeding
+    the workspace id from it — once, before delegating — guarantees every
+    CoderAgent delegation (even several fanned out in one turn) shares one
+    sandbox deterministically. The CoderToolset self-seeds as a fallback when no
+    orchestrator runs (e.g. standalone A2A), and an explicit CODER_WORKSPACE_ID
+    pin still wins over both.
+    """
+    if os.getenv("CODER_WORKSPACE_ID"):
+        return None
+    state = callback_context.state
+    if state.get(_WORKSPACE_STATE_KEY):
+        return None
+    inv = (getattr(callback_context, "_invocation_context", None)
+           or getattr(callback_context, "invocation_context", None))
+    session = getattr(inv, "session", None) if inv is not None else None
+    sid = getattr(session, "id", None)
+    if sid:
+        safe = re.sub(r"[^A-Za-z0-9_-]", "", str(sid))[:48] or "session"
+        state[_WORKSPACE_STATE_KEY] = f"ws_{safe}"
+    return None
